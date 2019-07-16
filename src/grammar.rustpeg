@@ -20,24 +20,25 @@ stm -> Statement
     = expr:expr __ ";" { Statement::Expression(expr) }
 
 expr -> Expression
-    = head:wrapped_atom tail:expr_tail* {
-        let mut current = head;
-        for tail_part in tail {
-            current = match tail_part {
-                ExpressionTail::MemberAccess(identifier) =>
-                    Expression::MemberAccess(Box::new(MemberAccess{
-                        object: current,
-                        property: identifier,
-                    })),
-                ExpressionTail::Call(args) =>
-                    Expression::Call(Box::new(Call{
-                        callee: current,
-                        arguments: args
-                    })),
+    = d:declaration { Expression::Declaration(Box::new(d)) }
+    / head:wrapped_atom tail:expr_tail* {
+            let mut current = head;
+            for tail_part in tail {
+                current = match tail_part {
+                    ExpressionTail::MemberAccess(identifier) =>
+                        Expression::MemberAccess(Box::new(MemberAccess{
+                            object: current,
+                            property: identifier,
+                        })),
+                    ExpressionTail::Call(args) =>
+                        Expression::Call(Box::new(Call{
+                            callee: current,
+                            arguments: args
+                        })),
+                }
             }
+            current
         }
-        current
-    }
 
 expr_tail -> ExpressionTail
     = __ "(" __ args:args __ ","? __ ")" __ { ExpressionTail::Call(args) }
@@ -57,6 +58,9 @@ atom -> Expression
 identifier -> Identifier
     = #quiet<name:$([a-zA-Z]+) { Identifier{ name: name.to_string() } }>
     / #expected("identifier")
+
+declaration -> Declaration
+    = "let" __ i:identifier __ "=" __ e:expr { Declaration{ id: i, value: e } }
 
 number_literal -> NumberLiteral
     = value:$([0-9]+) { NumberLiteral{ value: value.parse().unwrap() } }

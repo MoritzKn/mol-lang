@@ -87,9 +87,18 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Option<Value>, Runti
     match expr {
         Expression::Call(call) => call_fn(*call, ctx),
         Expression::MemberAccess(member_access) => {
-            let object_value = eval_expr(member_access.object, ctx)?;
-            // object_value.get(property.name);
-            Ok(object_value)
+            let object = eval_expr(member_access.object, ctx)?;
+            // object.get(property.name);
+            Ok(object)
+        }
+        Expression::Declaration(declaration) => {
+            let value = eval_expr(declaration.value, ctx)?;
+            if let Some(value) = value {
+                ctx.set_var(declaration.id.name, value.clone());
+                Ok(Some(value))
+            } else {
+                Err(RuntimeError{})
+            }
         }
         Expression::Identifier(identifier) => Ok(ctx.get_var(&identifier.name)),
         Expression::NumberLiteral(number_literal) => Ok(Some(Value::Number(number_literal.value))),

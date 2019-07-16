@@ -12,6 +12,7 @@ pub enum Statement {
 pub enum Expression {
     Call(Box<Call>),
     MemberAccess(Box<MemberAccess>),
+    Declaration(Box<Declaration>),
     Identifier(Box<Identifier>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
@@ -27,6 +28,12 @@ pub struct Call {
 pub struct MemberAccess {
     pub object: Expression,
     pub property: Identifier,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Declaration {
+    pub id: Identifier,
+    pub value: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -63,6 +70,9 @@ pub mod build {
     pub fn expr_member_access(member_access: MemberAccess) -> Expression {
         Expression::MemberAccess(Box::new(member_access))
     }
+    pub fn expr_declaration(declaration: Declaration) -> Expression {
+        Expression::Declaration(Box::new(declaration))
+    }
     pub fn expr_identifier(identifier: Identifier) -> Expression {
         Expression::Identifier(Box::new(identifier))
     }
@@ -91,6 +101,18 @@ pub mod build {
 
     pub fn member_access_expr(object: Expression, property: Identifier) -> Expression {
         expr_member_access(member_access(object, property))
+    }
+
+    pub fn declaration(id: Identifier, value: Expression) -> Declaration {
+        Declaration { id, value }
+    }
+
+    pub fn declaration_expr(id: Identifier, value: Expression) -> Expression {
+        expr_declaration(declaration(id, value))
+    }
+
+    pub fn declaration_stm(id: Identifier, value: Expression) -> Statement {
+        stm_expr(declaration_expr(id, value))
     }
 
     pub fn identifier(name: &str) -> Identifier {
