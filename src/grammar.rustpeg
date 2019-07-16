@@ -1,0 +1,77 @@
+use crate::ast::*;
+use super::ExpressionTail;
+
+pub program -> Program
+    = body:stm_list { Program{ body } }
+
+stm_list -> Vec<Statement>
+    = stms:wrapped_stm* expr:expr? {
+        if let Some(expr) = expr {
+            [&stms[..], &[Statement::Expression(expr)]].concat()
+        } else {
+            stms
+        }
+    }
+
+wrapped_stm -> Statement
+    = __ s:stm __ { s }
+
+stm -> Statement
+    = expr:expr __ ";" { Statement::Expression(expr) }
+
+expr -> Expression
+    = head:wrapped_atom tail:expr_tail* {
+        let mut current = head;
+        for tail_part in tail {
+            current = match tail_part {
+                ExpressionTail::MemberAccess(identifier) =>
+                    Expression::MemberAccess(Box::new(MemberAccess{
+                        object: current,
+                        property: identifier,
+                    })),
+                ExpressionTail::Call(args) =>
+                    Expression::Call(Box::new(Call{
+                        callee: current,
+                        arguments: args
+                    })),
+            }
+        }
+        current
+    }
+
+expr_tail -> ExpressionTail
+    = __ "(" __ args:args __ ","? __ ")" __ { ExpressionTail::Call(args) }
+    / __ "." __ property:identifier __ { ExpressionTail::MemberAccess(property) }
+
+args -> Vec<Expression>
+    = expr ** ","
+
+wrapped_atom -> Expression
+    = __ a:atom __ { a }
+
+atom -> Expression
+    = i:identifier { Expression::Identifier(Box::new(i)) }
+    / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
+    / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
+
+identifier -> Identifier
+    = #quiet<name:$([a-zA-Z]+) { Identifier{ name: name.to_string() } }>
+    / #expected("identifier")
+
+number_literal -> NumberLiteral
+    = value:$([0-9]+) { NumberLiteral{ value: value.parse().unwrap() } }
+
+string_literal -> StringLiteral
+    = "\"" value:$([^"]*) "\"" { StringLiteral{ value: value.to_string() } }
+
+__ = #quiet<(whitespace / eol)*>
+
+eol
+    = "\n"
+    / "\r\n"
+    / "\r"
+    / "\u{2028}"
+    / "\u{2029}"
+
+whitespace
+    = [ \t\u{00A0}\u{FEFF}\u{1680}\u{180E}\u{2000}-\u{200A}\u{202F}\u{205F}\u{3000}]

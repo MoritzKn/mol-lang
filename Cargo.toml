@@ -1,0 +1,8 @@
+[package]
+name = "mol"
+version = "0.1.0"
+authors = ["Moritz Kneilmann <moritz.kneilmann@gmx.de>"]
+edition = "2018"
+
+[build-dependencies]
+peg = "0.5.7"
