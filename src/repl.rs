@@ -1,32 +1,41 @@
-use std::io::{self, BufRead, Write};
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
 
 use crate::interpreter;
 use crate::parser;
 
 pub fn start() {
-    let stdin = io::stdin();
+    let mut rl = Editor::<()>::new();
 
-    print!("> ");
-    io::stdout().flush().unwrap();
+    loop {
+        match rl.readline("> ") {
+            Ok(line) => {
+                match parser::parse_string(&line) {
+                    Ok(program) => match interpreter::exec(program) {
+                        Ok(result) => {
+                            if let Some(value) = result {
+                                println!("{:?}", value);
+                            }
+                        }
+                        Err(error) => println!("{:?}", error),
+                    },
+                    Err(error) => println!("{}", error),
+                }
 
-    for line in stdin.lock().lines() {
-        match parser::parse_string(&line.unwrap()) {
-            Ok(program) => match interpreter::exec(program) {
-                Ok(result) => {
-                    if let Some(value) = result {
-                        println!("{:?}", value);
-                    }
-                }
-                Err(error) => {
-                    println!("Runtime error {:?}", error);
-                }
-            },
-            Err(error) => {
-                println!("{}", error);
+                rl.add_history_entry(line);
+            }
+            Err(ReadlineError::Interrupted) => {
+                println!("CTRL-C");
+                break;
+            }
+            Err(ReadlineError::Eof) => {
+                println!("CTRL-D");
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
             }
         }
-
-        print!("> ");
-        io::stdout().flush().unwrap();
     }
 }

@@ -1,3 +1,5 @@
+extern crate rustyline;
+
 mod ast;
 mod interpreter;
 mod parser;
