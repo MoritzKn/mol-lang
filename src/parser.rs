@@ -74,7 +74,8 @@ mod tests {
     fn test_declaration() {
         let result = parse_string(r#"let foo = 42"#).unwrap();
         let ast = program(vec![declaration_stm(
-            identifier("foo"), number_literal_expr(42.0)
+            identifier("foo"),
+            number_literal_expr(42.0),
         )]);
 
         assert_eq!(result, ast);

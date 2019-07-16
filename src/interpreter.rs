@@ -68,7 +68,7 @@ fn call_fn(call: Call, ctx: &mut Context) -> Result<Option<Value>, RuntimeError>
             let arg = eval_expr(expr, ctx)?;
 
             if arg.is_none() {
-                return Err(RuntimeError {})
+                return Err(RuntimeError {});
             }
 
             args.push(arg.unwrap());
@@ -97,7 +97,7 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Option<Value>, Runti
                 ctx.set_var(declaration.id.name, value.clone());
                 Ok(Some(value))
             } else {
-                Err(RuntimeError{})
+                Err(RuntimeError {})
             }
         }
         Expression::Identifier(identifier) => Ok(ctx.get_var(&identifier.name)),
