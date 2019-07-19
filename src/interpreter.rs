@@ -36,7 +36,7 @@ impl Context {
     }
 
     fn get_var(&self, name: &str) -> Option<Value> {
-        self.stack.last().unwrap().get(name).map(|v| v.clone())
+        self.stack.last().unwrap().get(name).cloned()
     }
 
     fn set_var(&mut self, name: String, value: Value) {
