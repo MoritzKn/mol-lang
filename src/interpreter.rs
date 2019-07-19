@@ -15,12 +15,12 @@ pub enum Value {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-struct Context {
+pub struct Context {
     stack: Vec<HashMap<String, Value>>,
 }
 
 impl Context {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let mut scope = HashMap::new();
         scope.insert(
             "log".to_string(),
@@ -106,13 +106,11 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Option<Value>, Runti
     }
 }
 
-pub fn exec(program: Program) -> Result<Option<Value>, RuntimeError> {
-    let mut ctx = Context::new();
-
+pub fn exec_with_context(program: Program, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
     let mut final_val = None;
     for statement in program.body {
         let result = match statement {
-            Statement::Expression(expression) => eval_expr(expression, &mut ctx),
+            Statement::Expression(expression) => eval_expr(expression, ctx),
         };
 
         if result.is_err() {
@@ -125,4 +123,10 @@ pub fn exec(program: Program) -> Result<Option<Value>, RuntimeError> {
     }
 
     Ok(final_val)
+}
+
+pub fn exec(program: Program) -> Result<Option<Value>, RuntimeError> {
+    let mut ctx = Context::new();
+
+    exec_with_context(program, &mut ctx)
 }

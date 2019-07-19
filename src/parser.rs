@@ -10,7 +10,7 @@ mod grammar {
 }
 
 pub fn parse_string(string: &str) -> Result<Program, grammar::ParseError> {
-    return grammar::program(string);
+    grammar::program(string)
 }
 
 #[cfg(test)]

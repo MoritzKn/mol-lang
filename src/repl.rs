@@ -6,12 +6,13 @@ use crate::parser;
 
 pub fn start() {
     let mut rl = Editor::<()>::new();
+    let mut context = interpreter::Context::new();
 
     loop {
         match rl.readline("> ") {
             Ok(line) => {
                 match parser::parse_string(&line) {
-                    Ok(program) => match interpreter::exec(program) {
+                    Ok(program) => match interpreter::exec_with_context(program, &mut context) {
                         Ok(result) => {
                             if let Some(value) = result {
                                 println!("{:?}", value);
@@ -24,14 +25,8 @@ pub fn start() {
 
                 rl.add_history_entry(line);
             }
-            Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
-                break;
-            }
-            Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
-                break;
-            }
+            Err(ReadlineError::Interrupted) => break,
+            Err(ReadlineError::Eof) => break,
             Err(err) => {
                 println!("Error: {:?}", err);
                 break;
