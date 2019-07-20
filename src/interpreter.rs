@@ -7,10 +7,12 @@ use std::collections::HashMap;
 //     value: HashMap(String, Value),
 // }
 
+// TODO: Introduce void type
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
     Number(f64),
     String(String),
+    Function(Box<FunctionLiteral>),
     NativeFunction(fn(Vec<Value>) -> Option<Value>),
 }
 
@@ -59,6 +61,10 @@ pub struct RuntimeError {}
 //
 // }
 
+fn eval_func(func: FunctionLiteral, args: Vec<Value>, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
+    eval_expr(func.expression, ctx)
+}
+
 fn call_fn(call: Call, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
     let func = eval_expr(call.callee, ctx)?;
 
@@ -75,6 +81,7 @@ fn call_fn(call: Call, ctx: &mut Context) -> Result<Option<Value>, RuntimeError>
         }
 
         match func {
+            Value::Function(func) => eval_func(*func, vec![], ctx),
             Value::NativeFunction(func) => Ok(func(args)),
             _ => Err(RuntimeError {}),
         }
@@ -90,7 +97,7 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Option<Value>, Runti
             let object = eval_expr(member_access.object, ctx)?;
             // object.get(property.name);
             Ok(object)
-        }
+        },
         Expression::Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
             if let Some(value) = value {
@@ -99,30 +106,23 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Option<Value>, Runti
             } else {
                 Err(RuntimeError {})
             }
-        }
+        },
+        Expression::Block(block) => {
+            let mut final_val = None;
+            for expression in block.body {
+                final_val = eval_expr(expression, ctx)?;
+            }
+            Ok(final_val)
+        },
         Expression::Identifier(identifier) => Ok(ctx.get_var(&identifier.name)),
+        Expression::FunctionLiteral(functio_literal) => Ok(Some(Value::Function(functio_literal))),
         Expression::NumberLiteral(number_literal) => Ok(Some(Value::Number(number_literal.value))),
         Expression::StringLiteral(string_literal) => Ok(Some(Value::String(string_literal.value))),
     }
 }
 
 pub fn exec_with_context(program: Program, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
-    let mut final_val = None;
-    for statement in program.body {
-        let result = match statement {
-            Statement::Expression(expression) => eval_expr(expression, ctx),
-        };
-
-        if result.is_err() {
-            return result;
-        }
-
-        if let Ok(value) = result {
-            final_val = value
-        }
-    }
-
-    Ok(final_val)
+    eval_expr(program.content, ctx)
 }
 
 pub fn exec(program: Program) -> Result<Option<Value>, RuntimeError> {

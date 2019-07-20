@@ -2,25 +2,28 @@ use crate::ast::*;
 use super::ExpressionTail;
 
 pub program -> Program
-    = body:stm_list { Program{ body } }
+    = content:expr_list { Program{ content: Expression::Block(Box::new(content)) } }
 
-stm_list -> Vec<Statement>
-    = stms:wrapped_stm* expr:expr? {
-        if let Some(expr) = expr {
-            [&stms[..], &[Statement::Expression(expr)]].concat()
+expr_list -> Block
+    = stms:wrapped_stm* expr:expr? __ {
+        let body = if let Some(expr) = expr {
+            [&stms[..], &[expr]].concat()
         } else {
             stms
-        }
+        };
+
+        Block{ body }
     }
 
-wrapped_stm -> Statement
+wrapped_stm -> Expression
     = __ s:stm __ { s }
 
-stm -> Statement
-    = expr:expr __ ";" { Statement::Expression(expr) }
+stm -> Expression
+    = expr:expr __ ";" { expr }
 
 expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
+    / fl:function_literal { Expression::FunctionLiteral(Box::new(fl)) }
     / head:wrapped_atom tail:expr_tail* {
             let mut current = head;
             for tail_part in tail {
@@ -51,9 +54,14 @@ wrapped_atom -> Expression
     = __ a:atom __ { a }
 
 atom -> Expression
-    = i:identifier { Expression::Identifier(Box::new(i)) }
+    = "(" __ expr:expr __ ")" { expr }
+    / block:block { Expression::Block(Box::new(block)) }
+    / i:identifier { Expression::Identifier(Box::new(i)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
+
+block -> Block
+    = "{" __ block:expr_list __ "}" { block }
 
 identifier -> Identifier
     = #quiet<name:$([a-zA-Z]+) { Identifier{ name: name.to_string() } }>
@@ -61,6 +69,14 @@ identifier -> Identifier
 
 declaration -> Declaration
     = "let" __ i:identifier __ "=" __ e:expr { Declaration{ id: i, value: e } }
+
+function_literal -> FunctionLiteral
+    = "(" __ arg:identifier __ ")" __  "=>" __ expression:expr {
+        FunctionLiteral{
+            id: Identifier{ name: "anonymous".to_string() },
+            expression,
+        }
+    }
 
 number_literal -> NumberLiteral
     = value:$([0-9]+) { NumberLiteral{ value: value.parse().unwrap() } }

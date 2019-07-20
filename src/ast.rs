@@ -1,21 +1,23 @@
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub body: Vec<Statement>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum Statement {
-    Expression(Expression),
+    pub content: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    Block(Box<Block>),
     Call(Box<Call>),
     MemberAccess(Box<MemberAccess>),
     Declaration(Box<Declaration>),
     Identifier(Box<Identifier>),
+    FunctionLiteral(Box<FunctionLiteral>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Block {
+    pub body: Vec<Expression>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,6 +44,12 @@ pub struct Identifier {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct FunctionLiteral {
+    pub id: Identifier,
+    pub expression: Expression,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct NumberLiteral {
     pub value: f64,
 }
@@ -53,17 +61,15 @@ pub struct StringLiteral {
 
 #[allow(dead_code)]
 pub mod build {
-
     use super::*;
 
-    pub fn program(body: Vec<Statement>) -> Program {
-        Program { body }
+    pub fn program(body: Vec<Expression>) -> Program {
+        Program { content: block_expr(body) }
     }
 
-    pub fn stm_expr(expression: Expression) -> Statement {
-        Statement::Expression(expression)
+    pub fn expr_block(block: Block) -> Expression {
+        Expression::Block(Box::new(block))
     }
-
     pub fn expr_call(call: Call) -> Expression {
         Expression::Call(Box::new(call))
     }
@@ -79,8 +85,19 @@ pub mod build {
     pub fn expr_number_literal(number_literal: NumberLiteral) -> Expression {
         Expression::NumberLiteral(Box::new(number_literal))
     }
+    pub fn expr_function_literal(function_literal: FunctionLiteral) -> Expression {
+        Expression::FunctionLiteral(Box::new(function_literal))
+    }
     pub fn expr_string_literal(string_literal: StringLiteral) -> Expression {
         Expression::StringLiteral(Box::new(string_literal))
+    }
+
+    pub fn block(body: Vec<Expression>) -> Block {
+        Block { body }
+    }
+
+    pub fn block_expr(body: Vec<Expression>) -> Expression {
+        Expression::Block(Box::new(block(body)))
     }
 
     pub fn call(callee: Expression, arguments: Vec<Expression>) -> Call {
@@ -89,10 +106,6 @@ pub mod build {
 
     pub fn call_expr(callee: Expression, arguments: Vec<Expression>) -> Expression {
         expr_call(call(callee, arguments))
-    }
-
-    pub fn call_stm(callee: Expression, arguments: Vec<Expression>) -> Statement {
-        stm_expr(expr_call(call(callee, arguments)))
     }
 
     pub fn member_access(object: Expression, property: Identifier) -> MemberAccess {
@@ -111,10 +124,6 @@ pub mod build {
         expr_declaration(declaration(id, value))
     }
 
-    pub fn declaration_stm(id: Identifier, value: Expression) -> Statement {
-        stm_expr(declaration_expr(id, value))
-    }
-
     pub fn identifier(name: &str) -> Identifier {
         Identifier {
             name: name.to_string(),
@@ -123,6 +132,14 @@ pub mod build {
 
     pub fn identifier_expr(name: &str) -> Expression {
         expr_identifier(identifier(name))
+    }
+
+    pub fn functio_literal(id: Identifier, expression: Expression) -> FunctionLiteral {
+        FunctionLiteral { id, expression }
+    }
+
+    pub fn functio_literal_expr(id: Identifier, expression: Expression) -> Expression {
+        expr_function_literal(functio_literal(id, expression))
     }
 
     pub fn number_literal(value: f64) -> NumberLiteral {
