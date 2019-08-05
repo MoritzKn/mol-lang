@@ -34,6 +34,21 @@ impl Context {
             }),
         );
 
+        scope.insert(
+            "add".to_string(),
+            Value::NativeFunction(|args| {
+                let mut sum = 0.0;
+
+                for arg in args {
+                    if let Value::Number(value) = arg {
+                        sum += value;
+                    };
+                };
+
+                Some(Value::Number(sum))
+            }),
+        );
+
         Self { stack: vec![scope] }
     }
 
