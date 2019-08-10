@@ -71,7 +71,7 @@ declaration -> Declaration
     = "let" __ i:identifier __ "=" __ e:expr { Declaration{ id: i, value: e } }
 
 function_literal -> FunctionLiteral
-    = "(" __ arg:identifier __ ")" __  "=>" __ expression:expr {
+    = "(" __ ")" __  "=>" __ expression:expr {
         FunctionLiteral{
             id: Identifier{ name: "anonymous".to_string() },
             expression,

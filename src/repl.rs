@@ -13,7 +13,7 @@ pub fn start() {
             Ok(line) => {
                 match parser::parse_string(&line) {
                     Ok(program) => match interpreter::exec_with_context(program, &mut context) {
-                        Ok(result) => println!("{}", result),
+                        Ok(value) => println!("{}", value),
                         Err(throw) => println!("Thrown: {}", throw.value),
                     },
                     Err(error) => println!("{}", error),
