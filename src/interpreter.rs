@@ -38,16 +38,31 @@ impl Value {
             Value::NativeFunction(_) => String::from("NativeFunction"),
         }
     }
+
+    fn to_string(&self) -> String {
+        match self {
+            Value::Void => "void".to_string(),
+            Value::Number(value) => value.to_string(),
+            Value::String(value) => value.clone(),
+            Value::Function(value) => format!("Function({:?})", value),
+            Value::NativeFunction(value) => format!("NativeFunction({:?})", value),
+        }
+    }
+
+    fn print(&self) -> String {
+        match self {
+            Value::String(value) => format!("\"{}\"", value),
+            _ => self.to_string(),
+        }
+    }
 }
 
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Void => write!(f, "void"),
-            Value::Number(value) => write!(f, "{}", value),
-            Value::String(value) => write!(f, "{}", value),
-            Value::Function(_) => write!(f, "Function"),
-            Value::NativeFunction(_) => write!(f, "NativeFunction"),
+            Value::Function(_) | Value::NativeFunction(_) => write!(f, "{}", self.to_string()),
+            _ => write!(f, "{}({})", self.get_type(), self.to_string()),
         }
     }
 }
@@ -99,7 +114,7 @@ impl Context {
 
         scope.set_var("log",
             Value::NativeFunction(|args| {
-                let args: Vec<String> = args.iter().map(|v| format!("{:?}", v)).collect();
+                let args: Vec<String> = args.iter().map(|v| v.to_string()).collect();
                 println!("{}", args.join(" "));
 
                 Ok(Value::Void)
@@ -182,7 +197,7 @@ fn call_fn(call: Call, ctx: &mut Context) -> Result<Value, Throw> {
         Value::NativeFunction(func) => func(args),
         _ => throw(Value::String(format!(
             "TypeError: {} is not a function",
-            callee
+            callee.print()
         ))),
     }
 }
