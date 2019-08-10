@@ -15,7 +15,6 @@ pub struct Closure {
 //     value: HashMap(String, Value),
 // }
 
-// TODO: Introduce void type
 #[derive(Debug, Clone)]
 pub enum Value {
     Void,
