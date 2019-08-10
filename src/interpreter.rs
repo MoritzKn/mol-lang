@@ -1,7 +1,7 @@
 use crate::ast::*;
 use std::collections::HashMap;
-use std::{fmt, fmt::Display};
 use std::sync::{Arc, Mutex};
+use std::{fmt, fmt::Display};
 
 #[derive(Debug, Clone)]
 pub struct Closure {
@@ -74,7 +74,9 @@ pub struct Scope {
 
 impl Scope {
     fn new() -> Self {
-        Scope { chain: vec![Arc::new(Mutex::new(HashMap::new()))] }
+        Scope {
+            chain: vec![Arc::new(Mutex::new(HashMap::new()))],
+        }
     }
 
     fn extending(scope: Arc<Mutex<Scope>>) -> Self {
@@ -90,10 +92,11 @@ impl Scope {
             let map = map.lock().unwrap();
             let value = map.get(name);
             if value.is_some() {
-                return value.map(|value| value.clone());
+                return value.cloned();
             }
         }
-        return None;
+
+        None
     }
 
     fn set_var(&mut self, name: &str, value: Value) {
@@ -112,7 +115,8 @@ impl Context {
     pub fn new() -> Self {
         let mut scope = Scope::new();
 
-        scope.set_var("log",
+        scope.set_var(
+            "log",
             Value::NativeFunction(|args| {
                 let args: Vec<String> = args.iter().map(|v| v.to_string()).collect();
                 println!("{}", args.join(" "));
@@ -121,7 +125,8 @@ impl Context {
             }),
         );
 
-        scope.set_var("add",
+        scope.set_var(
+            "add",
             Value::NativeFunction(|args| {
                 let mut sum = 0.0;
 
@@ -135,7 +140,10 @@ impl Context {
             }),
         );
 
-        Self { current_scope: Arc::new(Mutex::new(scope)), stack: vec![] }
+        Self {
+            current_scope: Arc::new(Mutex::new(scope)),
+            stack: vec![],
+        }
     }
 
     fn get_var(&self, name: &str) -> Option<Value> {
@@ -225,12 +233,10 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Value, Throw> {
         Expression::Identifier(identifier) => ctx.get_var(&identifier.name).ok_or(Throw {
             value: Value::String(format!("ReferenceError: {} not defined", &identifier.name)),
         }),
-        Expression::FunctionLiteral(functio_literal) => {
-            Ok(Value::Function(Box::new(Closure{
-                function: *functio_literal,
-                scope: ctx.current_scope.clone(),
-            })))
-        },
+        Expression::FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
+            function: *functio_literal,
+            scope: ctx.current_scope.clone(),
+        }))),
         Expression::NumberLiteral(number_literal) => Ok(Value::Number(number_literal.value)),
         Expression::StringLiteral(string_literal) => Ok(Value::String(string_literal.value)),
     }
