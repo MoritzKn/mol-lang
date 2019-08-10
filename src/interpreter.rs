@@ -1,5 +1,6 @@
 use crate::ast::*;
 use std::collections::HashMap;
+use std::{fmt, fmt::Display};
 
 // #[derive(Debug, Clone, PartialEq)]
 // struct Instance {
@@ -10,10 +11,38 @@ use std::collections::HashMap;
 // TODO: Introduce void type
 #[derive(Debug, Clone, PartialEq)]
 pub enum Value {
+    Void,
     Number(f64),
     String(String),
+    // Map(HashMap<String, Value>),
+    // List(Vec<Value>),
+    // Struct(HashMap<String, Value>, Box<Struct>),
     Function(Box<FunctionLiteral>),
-    NativeFunction(fn(Vec<Value>) -> Option<Value>),
+    NativeFunction(fn(Vec<Value>) -> Result<Value, Throw>),
+}
+
+impl Value {
+    fn get_type(&self) -> String {
+        match self {
+            Value::Void => String::from("Void"),
+            Value::Number(_) => String::from("Number"),
+            Value::String(_) => String::from("String"),
+            Value::Function(_) => String::from("Function"),
+            Value::NativeFunction(_) => String::from("NativeFunction"),
+        }
+    }
+}
+
+impl Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Value::Void => write!(f, "void"),
+            Value::Number(value) => write!(f, "{}", value),
+            Value::String(value) => write!(f, "{}", value),
+            Value::Function(_) => write!(f, "Function"),
+            Value::NativeFunction(_) => write!(f, "NativeFunction"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -30,7 +59,7 @@ impl Context {
                 let args: Vec<String> = args.iter().map(|v| format!("{:?}", v)).collect();
                 println!("{}", args.join(""));
 
-                None
+                Ok(Value::Void)
             }),
         );
 
@@ -43,9 +72,9 @@ impl Context {
                     if let Value::Number(value) = arg {
                         sum += value;
                     };
-                };
+                }
 
-                Some(Value::Number(sum))
+                Ok(Value::Number(sum))
             }),
         );
 
@@ -70,78 +99,67 @@ impl Context {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct RuntimeError {}
+pub struct Throw {
+    pub value: Value,
+}
 
-// fn eval_func(function: Function, args: Vec<Value>, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
-//
-// }
+fn throw(value: Value) -> Result<Value, Throw> {
+    Err(Throw { value })
+}
 
-fn eval_func(func: FunctionLiteral, args: Vec<Value>, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
+fn eval_func(func: FunctionLiteral, args: Vec<Value>, ctx: &mut Context) -> Result<Value, Throw> {
+    // set args in ctx
     eval_expr(func.expression, ctx)
 }
 
-fn call_fn(call: Call, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
-    let func = eval_expr(call.callee, ctx)?;
+fn call_fn(call: Call, ctx: &mut Context) -> Result<Value, Throw> {
+    let callee = eval_expr(call.callee, ctx)?;
 
-    if let Some(func) = func {
-        let mut args = vec![];
-        for expr in call.arguments {
-            let arg = eval_expr(expr, ctx)?;
+    let mut args = vec![];
+    for expr in call.arguments {
+        let value = eval_expr(expr, ctx)?;
+        args.push(value);
+    }
 
-            if arg.is_none() {
-                return Err(RuntimeError {});
-            }
-
-            args.push(arg.unwrap());
-        }
-
-        match func {
-            Value::Function(func) => eval_func(*func, vec![], ctx),
-            Value::NativeFunction(func) => Ok(func(args)),
-            _ => Err(RuntimeError {}),
-        }
-    } else {
-        Err(RuntimeError {})
+    match callee {
+        Value::Function(func) => eval_func(*func, args, ctx),
+        Value::NativeFunction(func) => func(args),
+        _ => throw(Value::String(format!(
+            "TypeError: {} is not a function",
+            callee
+        ))),
     }
 }
 
-fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
+fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Value, Throw> {
     match expr {
         Expression::Call(call) => call_fn(*call, ctx),
         Expression::MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
             // object.get(property.name);
             Ok(object)
-        },
+        }
         Expression::Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
-            if let Some(value) = value {
-                ctx.set_var(declaration.id.name, value.clone());
-                Ok(Some(value))
-            } else {
-                Err(RuntimeError {})
-            }
-        },
+            ctx.set_var(declaration.id.name, value.clone());
+            Ok(value)
+        }
         Expression::Block(block) => {
-            let mut final_val = None;
+            let mut final_val = Value::Void;
             for expression in block.body {
                 final_val = eval_expr(expression, ctx)?;
             }
             Ok(final_val)
-        },
-        Expression::Identifier(identifier) => Ok(ctx.get_var(&identifier.name)),
-        Expression::FunctionLiteral(functio_literal) => Ok(Some(Value::Function(functio_literal))),
-        Expression::NumberLiteral(number_literal) => Ok(Some(Value::Number(number_literal.value))),
-        Expression::StringLiteral(string_literal) => Ok(Some(Value::String(string_literal.value))),
+        }
+        Expression::Identifier(identifier) => ctx.get_var(&identifier.name).ok_or(Throw {
+            value: Value::String(format!("ReferenceError: {} not defined", &identifier.name)),
+        }),
+        Expression::FunctionLiteral(functio_literal) => Ok(Value::Function(functio_literal)),
+        Expression::NumberLiteral(number_literal) => Ok(Value::Number(number_literal.value)),
+        Expression::StringLiteral(string_literal) => Ok(Value::String(string_literal.value)),
     }
 }
 
-pub fn exec_with_context(program: Program, ctx: &mut Context) -> Result<Option<Value>, RuntimeError> {
+pub fn exec_with_context(program: Program, ctx: &mut Context) -> Result<Value, Throw> {
     eval_expr(program.content, ctx)
-}
-
-pub fn exec(program: Program) -> Result<Option<Value>, RuntimeError> {
-    let mut ctx = Context::new();
-
-    exec_with_context(program, &mut ctx)
 }

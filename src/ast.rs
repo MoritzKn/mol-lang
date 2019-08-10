@@ -64,7 +64,9 @@ pub mod build {
     use super::*;
 
     pub fn program(body: Vec<Expression>) -> Program {
-        Program { content: block_expr(body) }
+        Program {
+            content: block_expr(body),
+        }
     }
 
     pub fn expr_block(block: Block) -> Expression {
