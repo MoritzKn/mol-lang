@@ -4,6 +4,7 @@ use std::sync::{Weak, Arc, Mutex};
 use std::{fmt, fmt::Display};
 
 type ScopeChain = Vec<Arc<Mutex<Scope>>>;
+type WeakScopeChain = Vec<Weak<Mutex<Scope>>>;
 
 #[derive(Debug, Clone)]
 pub struct Closure {
@@ -92,7 +93,7 @@ impl Scope {
 #[derive(Debug, Clone)]
 pub struct Frame {
     scope: Arc<Mutex<Scope>>,
-    scope_chain: ScopeChain,
+    scope_chain: WeakScopeChain,
 }
 
 impl Frame {
@@ -106,7 +107,10 @@ impl Frame {
     fn for_closure(scope_chain: ScopeChain) -> Self {
         Self {
             scope: Arc::new(Mutex::new(Scope::new())),
-            scope_chain,
+            scope_chain: scope_chain
+                .iter()
+                .map(|scope| Arc::downgrade(scope))
+                .collect::<WeakScopeChain>(),
         }
     }
 
@@ -118,6 +122,7 @@ impl Frame {
         }
 
         for scope in self.scope_chain.iter().rev() {
+            let scope = scope.upgrade().expect("Scope already dropped");
             let scope = scope.lock().unwrap();
             let value = scope.get(name);
             if value.is_some() {
@@ -142,7 +147,7 @@ impl Display for Frame {
 
 impl Drop for Frame {
     fn drop(&mut self) {
-        println!("> Dropping {}", self);
+        println!("[!] Dropping {}", self);
     }
 }
 
@@ -211,7 +216,10 @@ impl Context {
     fn export_scope_chain(&self) -> ScopeChain {
         let current = self.current.lock().unwrap();
 
-        let mut chain = current.scope_chain.clone();
+        let mut chain = current.scope_chain
+            .iter()
+            .map(|scope| scope.upgrade().expect("Scope already dropped"))
+            .collect::<ScopeChain>();
         chain.push(current.scope.clone());
 
         chain
