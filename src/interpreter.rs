@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ast;
 use std::collections::HashMap;
 use std::sync::{Weak, Arc, Mutex};
 use std::{fmt, fmt::Display};
@@ -8,7 +8,7 @@ type WeakScopeChain = Vec<Weak<Mutex<Scope>>>;
 
 #[derive(Debug, Clone)]
 pub struct Closure {
-    function: FunctionLiteral,
+    function: ast::FunctionLiteral,
     scope_chain: ScopeChain,
 }
 
@@ -252,7 +252,7 @@ fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Resul
     result
 }
 
-fn call_fn(call: Call, ctx: &mut Context) -> Result<Value, Throw> {
+fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Throw> {
     let callee = eval_expr(call.callee, ctx)?;
 
     let mut args = vec![];
@@ -271,38 +271,40 @@ fn call_fn(call: Call, ctx: &mut Context) -> Result<Value, Throw> {
     }
 }
 
-fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Value, Throw> {
+fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
+    use ast::Expression::*;
+
     match expr {
-        Expression::Call(call) => call_fn(*call, ctx),
-        Expression::MemberAccess(member_access) => {
+        Call(call) => call_fn(*call, ctx),
+        MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
             // object.get(property.name);
             Ok(object)
         }
-        Expression::Declaration(declaration) => {
+        Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
             ctx.set_var(declaration.id.name, value.clone());
             Ok(value)
         }
-        Expression::Block(block) => {
+        Block(block) => {
             let mut final_val = Value::Void;
             for expression in block.body {
                 final_val = eval_expr(expression, ctx)?;
             }
             Ok(final_val)
         }
-        Expression::Identifier(identifier) => ctx.get_var(&identifier.name).ok_or(Throw {
+        Identifier(identifier) => ctx.get_var(&identifier.name).ok_or(Throw {
             value: Value::String(format!("ReferenceError: {} not defined", &identifier.name)),
         }),
-        Expression::FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
+        FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
             function: *functio_literal,
             scope_chain: ctx.export_scope_chain(),
         }))),
-        Expression::NumberLiteral(number_literal) => Ok(Value::Number(number_literal.value)),
-        Expression::StringLiteral(string_literal) => Ok(Value::String(string_literal.value)),
+        NumberLiteral(number_literal) => Ok(Value::Number(number_literal.value)),
+        StringLiteral(string_literal) => Ok(Value::String(string_literal.value)),
     }
 }
 
-pub fn exec_with_context(program: Program, ctx: &mut Context) -> Result<Value, Throw> {
+pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Value, Throw> {
     eval_expr(program.content, ctx)
 }
