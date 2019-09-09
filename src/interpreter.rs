@@ -278,7 +278,6 @@ fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Throw> {
 }
 
 fn eval_expr_list(expr_list: Vec<ast::Expression>, ctx: &mut Context) -> Result<Value, Throw> {
-    // TODO: try using return from for
     let mut final_val = Value::Void;
     for expr in expr_list {
         final_val = eval_expr(expr, ctx)?;
