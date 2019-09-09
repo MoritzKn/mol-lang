@@ -2,9 +2,9 @@ use crate::ast::*;
 use super::ExpressionTail;
 
 pub program -> Program
-    = content:expr_list { Program{ content: Expression::Block(Box::new(content)) } }
+    = content:block_content { Program{ content: Expression::Block(Box::new(content)) } }
 
-expr_list -> Block
+block_content -> Block
     = stms:wrapped_stm* expr:expr? __ {
         let body = if let Some(expr) = expr {
             [&stms[..], &[expr]].concat()
@@ -44,10 +44,10 @@ expr -> Expression
         }
 
 expr_tail -> ExpressionTail
-    = __ "(" __ args:args __ ","? __ ")" __ { ExpressionTail::Call(args) }
+    = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:identifier __ { ExpressionTail::MemberAccess(property) }
 
-args -> Vec<Expression>
+expr_list -> Vec<Expression>
     = expr ** ","
 
 wrapped_atom -> Expression
@@ -61,7 +61,7 @@ atom -> Expression
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
 
 block -> Block
-    = "{" __ block:expr_list __ "}" { block }
+    = "{" __ block:block_content __ "}" { block }
 
 identifier -> Identifier
     = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Identifier{ name: name.to_string() } }>
@@ -71,12 +71,27 @@ declaration -> Declaration
     = "let" __ i:identifier __ "=" __ e:expr { Declaration{ id: i, value: e } }
 
 function_literal -> FunctionLiteral
-    = "(" __ ")" __  "=>" __ expression:expr {
+    = "(" __ slots:slot_list __ ")" __  "=>" __ expression:expr {
         FunctionLiteral{
             id: Identifier{ name: "anonymous".to_string() },
+            slots,
             expression,
         }
     }
+
+slot_type_sufix -> Identifier
+    = ":" __ ty:identifier { ty }
+
+slot -> Slot
+    = id:identifier __ ty:slot_type_sufix? {
+        Slot { id, ty: ty.unwrap_or(Identifier{ name: String::from("Any") }) }
+    }
+
+wrapped_slot -> Slot
+    = __ slot:slot __ { slot }
+
+slot_list -> Vec<Slot>
+    = wrapped_slot ** ","
 
 number_literal -> NumberLiteral
     = value:$([0-9]+) { NumberLiteral{ value: value.parse().unwrap() } }

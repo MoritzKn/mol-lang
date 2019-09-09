@@ -235,11 +235,15 @@ fn throw(value: Value) -> Result<Value, Throw> {
     Err(Throw { value })
 }
 
-fn eval_func(closure: Closure, args: Vec<Value>, ctx: &mut Context) -> Result<Value, Throw> {
+fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Throw> {
     let frame = Frame::for_closure(closure.scope_chain);
     let frame = Arc::new(Mutex::new(frame));
 
     ctx.push_stack(frame);
+
+    for (i, arg) in args.drain(..).enumerate() {
+        ctx.set_var(closure.function.slots[i].id.name.clone(), arg);
+    }
 
     let result = eval_expr(closure.function.expression, ctx);
 

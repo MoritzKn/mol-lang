@@ -44,8 +44,15 @@ pub struct Identifier {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Slot {
+    pub id: Identifier,
+    pub ty: Identifier,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct FunctionLiteral {
     pub id: Identifier,
+    pub slots: Vec<Slot>,
     pub expression: Expression,
 }
 
@@ -136,12 +143,12 @@ pub mod build {
         expr_identifier(identifier(name))
     }
 
-    pub fn functio_literal(id: Identifier, expression: Expression) -> FunctionLiteral {
-        FunctionLiteral { id, expression }
+    pub fn functio_literal(id: Identifier, slots: Vec<Slot>, expression: Expression) -> FunctionLiteral {
+        FunctionLiteral { id, slots, expression }
     }
 
-    pub fn functio_literal_expr(id: Identifier, expression: Expression) -> Expression {
-        expr_function_literal(functio_literal(id, expression))
+    pub fn functio_literal_expr(id: Identifier, slots: Vec<Slot>, expression: Expression) -> Expression {
+        expr_function_literal(functio_literal(id, slots, expression))
     }
 
     pub fn number_literal(value: f64) -> NumberLiteral {
