@@ -2,9 +2,9 @@ use crate::ast::*;
 use super::ExpressionTail;
 
 pub program -> Program
-    = content:block_content { Program{ content: Expression::Block(Box::new(content)) } }
+    = body:block_body { Program{ body } }
 
-block_content -> Block
+block_body -> Vec<Expression>
     = stms:wrapped_stm* expr:expr? __ {
         let body = if let Some(expr) = expr {
             [&stms[..], &[expr]].concat()
@@ -12,7 +12,7 @@ block_content -> Block
             stms
         };
 
-        Block{ body }
+        body
     }
 
 wrapped_stm -> Expression
@@ -61,7 +61,7 @@ atom -> Expression
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
 
 block -> Block
-    = "{" __ block:block_content __ "}" { block }
+    = "{" __ body:block_body __ "}" { Block { body } }
 
 id -> Id
     = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Id{ name: name.to_string() } }>

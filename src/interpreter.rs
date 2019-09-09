@@ -12,6 +12,12 @@ pub struct Closure {
     scope_chain: ScopeChain,
 }
 
+impl Display for Closure {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.function)
+    }
+}
+
 // #[derive(Debug, Clone, PartialEq)]
 // struct Instance {
 //     name: String,
@@ -46,7 +52,7 @@ impl Value {
             Value::Void => "void".to_string(),
             Value::Number(value) => value.to_string(),
             Value::String(value) => value.clone(),
-            Value::Function(value) => format!("{:?}", value),
+            Value::Function(value) => format!("{}", value),
             Value::NativeFunction(value) => format!("NativeFunction({:?})", value),
         }
     }
@@ -271,6 +277,15 @@ fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Throw> {
     }
 }
 
+fn eval_expr_list(expr_list: Vec<ast::Expression>, ctx: &mut Context) -> Result<Value, Throw> {
+    // TODO: try using return from for
+    let mut final_val = Value::Void;
+    for expr in expr_list {
+        final_val = eval_expr(expr, ctx)?;
+    }
+    Ok(final_val)
+}
+
 fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
     use ast::Expression::*;
 
@@ -286,13 +301,7 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
             ctx.set_var(&declaration.id, value.clone());
             Ok(value)
         }
-        Block(block) => {
-            let mut final_val = Value::Void;
-            for expression in block.body {
-                final_val = eval_expr(expression, ctx)?;
-            }
-            Ok(final_val)
-        }
+        Block(block) => eval_expr_list(block.body, ctx),
         Id(id) => ctx.get_var(&id).ok_or(Throw {
             value: Value::String(format!("ReferenceError: {} not defined", id)),
         }),
@@ -306,5 +315,5 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
 }
 
 pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Value, Throw> {
-    eval_expr(program.content, ctx)
+    eval_expr_list(program.body, ctx)
 }

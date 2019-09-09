@@ -1,8 +1,27 @@
 use std::{fmt, fmt::Display};
 
+
+fn join<W: fmt::Write, T: Display>(f: &mut W, list: &Vec<T>, seperator: &str) -> fmt::Result {
+    let mut first = true;
+    for item in list {
+        if !first {
+            write!(f, "{}", seperator)?;
+        };
+        write!(f, "{}", item)?;
+        first = false;
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-    pub content: Expression,
+    pub body: Vec<Expression>,
+}
+
+impl Display for Program {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        join(f, &self.body, ";\n")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,9 +36,40 @@ pub enum Expression {
     StringLiteral(Box<StringLiteral>),
 }
 
+impl Display for Expression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expression::Block(value) => write!(f, "{}", value),
+            Expression::Call(value) => write!(f, "{}", value),
+            Expression::MemberAccess(value) => write!(f, "{}", value),
+            Expression::Declaration(value) => write!(f, "{}", value),
+            Expression::Id(value) => write!(f, "{}", value),
+            Expression::FunctionLiteral(value) => write!(f, "{}", value),
+            Expression::NumberLiteral(value) => write!(f, "{}", value),
+            Expression::StringLiteral(value) => write!(f, "{}", value),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Block {
     pub body: Vec<Expression>,
+}
+
+impl Display for Block {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", "{\n")?;
+
+        let mut body = String::new();
+        join(&mut body, &self.body, ";\n")?;
+        let body = body
+            .split("\n")
+            .map(|line| format!("    {}", line)).collect::<Vec<String>>()
+            .join("\n");
+        write!(f, "{}", body)?;
+
+        write!(f, "{}", "\n}")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -28,16 +78,36 @@ pub struct Call {
     pub arguments: Vec<Expression>,
 }
 
+impl Display for Call {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}(", self.callee)?;
+        join(f, &self.arguments, " ,")?;
+        write!(f, ")")
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct MemberAccess {
     pub object: Expression,
     pub property: Id,
 }
 
+impl Display for MemberAccess {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}", self.object, self.property)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub id: Id,
     pub value: Expression,
+}
+
+impl Display for Declaration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "let {} = {}", self.id, self.value)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -57,6 +127,12 @@ pub struct Slot {
     pub ty: Id,
 }
 
+impl Display for Slot {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.id, self.ty)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionLiteral {
     pub id: Id,
@@ -64,14 +140,34 @@ pub struct FunctionLiteral {
     pub expression: Expression,
 }
 
+impl Display for FunctionLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "(")?;
+        join(f, &self.slots, " ,")?;
+        write!(f, ") => {}", self.expression)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct NumberLiteral {
     pub value: f64,
 }
 
+impl Display for NumberLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.value)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct StringLiteral {
     pub value: String,
+}
+
+impl Display for StringLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "\"{}\"", self.value)
+    }
 }
 
 #[allow(dead_code)]
@@ -80,7 +176,7 @@ pub mod build {
 
     pub fn program(body: Vec<Expression>) -> Program {
         Program {
-            content: block_expr(body),
+            body,
         }
     }
 
