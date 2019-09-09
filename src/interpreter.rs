@@ -192,12 +192,12 @@ impl Context {
         }
     }
 
-    fn get_var(&self, name: &str) -> Option<Value> {
-        self.current.lock().unwrap().get_var(name)
+    fn get_var(&self, id: &ast::Id) -> Option<Value> {
+        self.current.lock().unwrap().get_var(&id.name)
     }
 
-    fn set_var(&mut self, name: String, value: Value) {
-        self.current.lock().unwrap().set_var(name, value)
+    fn set_var(&mut self, id: &ast::Id, value: Value) {
+        self.current.lock().unwrap().set_var(id.name.clone(), value)
     }
 
     fn push_stack(&mut self, frame: Arc<Mutex<Frame>>) {
@@ -242,7 +242,7 @@ fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Resul
     ctx.push_stack(frame);
 
     for (i, arg) in args.drain(..).enumerate() {
-        ctx.set_var(closure.function.slots[i].id.name.clone(), arg);
+        ctx.set_var(&closure.function.slots[i].id, arg);
     }
 
     let result = eval_expr(closure.function.expression, ctx);
@@ -278,12 +278,12 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
         Call(call) => call_fn(*call, ctx),
         MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
-            // object.get(property.name);
+            // object.get(&property);
             Ok(object)
         }
         Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
-            ctx.set_var(declaration.id.name, value.clone());
+            ctx.set_var(&declaration.id, value.clone());
             Ok(value)
         }
         Block(block) => {
@@ -293,8 +293,8 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
             }
             Ok(final_val)
         }
-        Identifier(identifier) => ctx.get_var(&identifier.name).ok_or(Throw {
-            value: Value::String(format!("ReferenceError: {} not defined", &identifier.name)),
+        Id(id) => ctx.get_var(&id).ok_or(Throw {
+            value: Value::String(format!("ReferenceError: {} not defined", id)),
         }),
         FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
             function: *functio_literal,

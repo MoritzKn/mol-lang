@@ -27,14 +27,14 @@ EmptyStatement
 
 ```
 Assigment
-	Identifier "=" Expression ";"
+	Id "=" Expression ";"
 ````
 
 ```
 Expression:
 	Call
 	MemberAccess
-	Identifier
+	Id
 	NumberLiteral
 	StringLiteral
 ```
@@ -46,11 +46,11 @@ Call:
 
 ```
 MemberAccess:
-	Expression "." Identifier
+	Expression "." Id
 ```
 
 ```
-Identifier
+Id
 	Letter {LetterOrDigit}
 
 LetterOrDigit

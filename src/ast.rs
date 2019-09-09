@@ -1,3 +1,5 @@
+use std::{fmt, fmt::Display};
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub content: Expression,
@@ -9,7 +11,7 @@ pub enum Expression {
     Call(Box<Call>),
     MemberAccess(Box<MemberAccess>),
     Declaration(Box<Declaration>),
-    Identifier(Box<Identifier>),
+    Id(Box<Id>),
     FunctionLiteral(Box<FunctionLiteral>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
@@ -29,29 +31,35 @@ pub struct Call {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MemberAccess {
     pub object: Expression,
-    pub property: Identifier,
+    pub property: Id,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
-    pub id: Identifier,
+    pub id: Id,
     pub value: Expression,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Identifier {
+pub struct Id {
     pub name: String,
+}
+
+impl Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Slot {
-    pub id: Identifier,
-    pub ty: Identifier,
+    pub id: Id,
+    pub ty: Id,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionLiteral {
-    pub id: Identifier,
+    pub id: Id,
     pub slots: Vec<Slot>,
     pub expression: Expression,
 }
@@ -88,8 +96,8 @@ pub mod build {
     pub fn expr_declaration(declaration: Declaration) -> Expression {
         Expression::Declaration(Box::new(declaration))
     }
-    pub fn expr_identifier(identifier: Identifier) -> Expression {
-        Expression::Identifier(Box::new(identifier))
+    pub fn expr_id(id: Id) -> Expression {
+        Expression::Id(Box::new(id))
     }
     pub fn expr_number_literal(number_literal: NumberLiteral) -> Expression {
         Expression::NumberLiteral(Box::new(number_literal))
@@ -117,37 +125,37 @@ pub mod build {
         expr_call(call(callee, arguments))
     }
 
-    pub fn member_access(object: Expression, property: Identifier) -> MemberAccess {
+    pub fn member_access(object: Expression, property: Id) -> MemberAccess {
         MemberAccess { object, property }
     }
 
-    pub fn member_access_expr(object: Expression, property: Identifier) -> Expression {
+    pub fn member_access_expr(object: Expression, property: Id) -> Expression {
         expr_member_access(member_access(object, property))
     }
 
-    pub fn declaration(id: Identifier, value: Expression) -> Declaration {
+    pub fn declaration(id: Id, value: Expression) -> Declaration {
         Declaration { id, value }
     }
 
-    pub fn declaration_expr(id: Identifier, value: Expression) -> Expression {
+    pub fn declaration_expr(id: Id, value: Expression) -> Expression {
         expr_declaration(declaration(id, value))
     }
 
-    pub fn identifier(name: &str) -> Identifier {
-        Identifier {
+    pub fn id(name: &str) -> Id {
+        Id {
             name: name.to_string(),
         }
     }
 
-    pub fn identifier_expr(name: &str) -> Expression {
-        expr_identifier(identifier(name))
+    pub fn id_expr(name: &str) -> Expression {
+        expr_id(id(name))
     }
 
-    pub fn functio_literal(id: Identifier, slots: Vec<Slot>, expression: Expression) -> FunctionLiteral {
+    pub fn functio_literal(id: Id, slots: Vec<Slot>, expression: Expression) -> FunctionLiteral {
         FunctionLiteral { id, slots, expression }
     }
 
-    pub fn functio_literal_expr(id: Identifier, slots: Vec<Slot>, expression: Expression) -> Expression {
+    pub fn functio_literal_expr(id: Id, slots: Vec<Slot>, expression: Expression) -> Expression {
         expr_function_literal(functio_literal(id, slots, expression))
     }
 

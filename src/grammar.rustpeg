@@ -28,10 +28,10 @@ expr -> Expression
             let mut current = head;
             for tail_part in tail {
                 current = match tail_part {
-                    ExpressionTail::MemberAccess(identifier) =>
+                    ExpressionTail::MemberAccess(id) =>
                         Expression::MemberAccess(Box::new(MemberAccess{
                             object: current,
-                            property: identifier,
+                            property: id,
                         })),
                     ExpressionTail::Call(args) =>
                         Expression::Call(Box::new(Call{
@@ -45,7 +45,7 @@ expr -> Expression
 
 expr_tail -> ExpressionTail
     = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
-    / __ "." __ property:identifier __ { ExpressionTail::MemberAccess(property) }
+    / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
 
 expr_list -> Vec<Expression>
     = expr ** ","
@@ -56,35 +56,35 @@ wrapped_atom -> Expression
 atom -> Expression
     = "(" __ expr:expr __ ")" { expr }
     / block:block { Expression::Block(Box::new(block)) }
-    / i:identifier { Expression::Identifier(Box::new(i)) }
+    / i:id { Expression::Id(Box::new(i)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
 
 block -> Block
     = "{" __ block:block_content __ "}" { block }
 
-identifier -> Identifier
-    = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Identifier{ name: name.to_string() } }>
-    / #expected("identifier")
+id -> Id
+    = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Id{ name: name.to_string() } }>
+    / #expected("id")
 
 declaration -> Declaration
-    = "let" __ i:identifier __ "=" __ e:expr { Declaration{ id: i, value: e } }
+    = "let" __ i:id __ "=" __ e:expr { Declaration{ id: i, value: e } }
 
 function_literal -> FunctionLiteral
     = "(" __ slots:slot_list __ ")" __  "=>" __ expression:expr {
         FunctionLiteral{
-            id: Identifier{ name: "anonymous".to_string() },
+            id: Id{ name: "anonymous".to_string() },
             slots,
             expression,
         }
     }
 
-slot_type_sufix -> Identifier
-    = ":" __ ty:identifier { ty }
+slot_type_sufix -> Id
+    = ":" __ ty:id { ty }
 
 slot -> Slot
-    = id:identifier __ ty:slot_type_sufix? {
-        Slot { id, ty: ty.unwrap_or(Identifier{ name: String::from("Any") }) }
+    = id:id __ ty:slot_type_sufix? {
+        Slot { id, ty: ty.unwrap_or(Id{ name: String::from("Any") }) }
     }
 
 wrapped_slot -> Slot
