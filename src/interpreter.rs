@@ -31,7 +31,7 @@ pub enum Value {
 }
 
 impl Value {
-    fn get_type(&self) -> String {
+    pub fn get_type(&self) -> String {
         match self {
             Value::Void => String::from("Void"),
             Value::Number(_) => String::from("Number"),
@@ -41,17 +41,17 @@ impl Value {
         }
     }
 
-    fn to_string(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             Value::Void => "void".to_string(),
             Value::Number(value) => value.to_string(),
             Value::String(value) => value.clone(),
-            Value::Function(value) => format!("Function({:?})", value),
+            Value::Function(value) => format!("{:?}", value),
             Value::NativeFunction(value) => format!("NativeFunction({:?})", value),
         }
     }
 
-    fn print(&self) -> String {
+    pub fn print(&self) -> String {
         match self {
             Value::String(value) => format!("\"{}\"", value),
             _ => self.to_string(),
@@ -62,8 +62,8 @@ impl Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Void => write!(f, "void"),
-            Value::Function(_) | Value::NativeFunction(_) => write!(f, "{}", self.to_string()),
+            Value::Void => write!(f, "{}", self.get_type()),
+            Value::NativeFunction(_) => write!(f, "{}", self.to_string()),
             _ => write!(f, "{}({})", self.get_type(), self.to_string()),
         }
     }

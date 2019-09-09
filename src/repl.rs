@@ -13,8 +13,9 @@ pub fn start() {
             Ok(line) => {
                 match parser::parse_string(&line) {
                     Ok(program) => match interpreter::exec_with_context(program, &mut context) {
-                        Ok(value) => println!("{}", value),
                         Err(throw) => println!("Thrown: {}", throw.value),
+                        Ok(interpreter::Value::Void) => (),
+                        Ok(value) => println!("{}", value.print()),
                     },
                     Err(error) => println!("{}", error),
                 }
