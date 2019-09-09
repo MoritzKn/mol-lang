@@ -1,12 +1,14 @@
 use crate::ast::*;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use std::sync::{Weak, Arc, Mutex};
 use std::{fmt, fmt::Display};
+
+type ScopeChain = Vec<Arc<Mutex<Scope>>>;
 
 #[derive(Debug, Clone)]
 pub struct Closure {
     function: FunctionLiteral,
-    scope: Arc<Mutex<Scope>>,
+    scope_chain: ScopeChain,
 }
 
 // #[derive(Debug, Clone, PartialEq)]
@@ -68,54 +70,94 @@ impl Display for Value {
 
 #[derive(Debug, Clone)]
 pub struct Scope {
-    chain: Vec<Arc<Mutex<HashMap<String, Value>>>>,
+    vars: HashMap<String, Value>,
 }
 
 impl Scope {
     fn new() -> Self {
-        Scope {
-            chain: vec![Arc::new(Mutex::new(HashMap::new()))],
+        Self {
+            vars: HashMap::new(),
         }
     }
 
-    fn extending(scope: Arc<Mutex<Scope>>) -> Self {
-        let scope = scope.lock().unwrap();
-        let mut chain = scope.chain.clone();
-        chain.push(Arc::new(Mutex::new(HashMap::new())));
+    fn get(&self, name: &str) -> Option<Value> {
+        self.vars.get(name).cloned()
+    }
 
-        Scope { chain }
+    fn set(&mut self, name: String, value: Value) {
+        self.vars.insert(name, value);
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Frame {
+    scope: Arc<Mutex<Scope>>,
+    scope_chain: ScopeChain,
+}
+
+impl Frame {
+    fn new() -> Self {
+        Self {
+            scope: Arc::new(Mutex::new(Scope::new())),
+            scope_chain: vec![],
+        }
+    }
+
+    fn for_closure(scope_chain: ScopeChain) -> Self {
+        Self {
+            scope: Arc::new(Mutex::new(Scope::new())),
+            scope_chain,
+        }
     }
 
     fn get_var(&self, name: &str) -> Option<Value> {
-        for map in self.chain.iter().rev() {
-            let map = map.lock().unwrap();
-            let value = map.get(name);
+        let scope = self.scope.lock().unwrap();
+        let value = scope.get(name);
+        if value.is_some() {
+            return value;
+        }
+
+        for scope in self.scope_chain.iter().rev() {
+            let scope = scope.lock().unwrap();
+            let value = scope.get(name);
             if value.is_some() {
-                return value.cloned();
+                return value;
             }
         }
 
         None
     }
 
-    fn set_var(&mut self, name: &str, value: Value) {
-        let mut last = self.chain.last().unwrap().lock().unwrap();
-        last.insert(name.to_string(), value);
+    fn set_var(&mut self, name: String, value: Value) {
+        let mut scope = self.scope.lock().unwrap();
+        scope.set(name, value);
+    }
+}
+
+impl Display for Frame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "scope({})", self.scope_chain.len())
+    }
+}
+
+impl Drop for Frame {
+    fn drop(&mut self) {
+        println!("> Dropping {}", self);
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Context {
-    current_scope: Arc<Mutex<Scope>>,
-    stack: Vec<Arc<Mutex<Scope>>>,
+    current: Arc<Mutex<Frame>>,
+    stack: Vec<Arc<Mutex<Frame>>>,
 }
 
 impl Context {
     pub fn new() -> Self {
-        let mut scope = Scope::new();
+        let mut scope = Frame::new();
 
         scope.set_var(
-            "log",
+            "log".to_string(),
             Value::NativeFunction(|args| {
                 let args: Vec<String> = args.iter().map(|v| v.to_string()).collect();
                 println!("{}", args.join(" "));
@@ -125,7 +167,7 @@ impl Context {
         );
 
         scope.set_var(
-            "add",
+            "add".to_string(),
             Value::NativeFunction(|args| {
                 let mut sum = 0.0;
 
@@ -140,32 +182,39 @@ impl Context {
         );
 
         Self {
-            current_scope: Arc::new(Mutex::new(scope)),
+            current: Arc::new(Mutex::new(scope)),
             stack: vec![],
         }
     }
 
     fn get_var(&self, name: &str) -> Option<Value> {
-        let scope = self.current_scope.lock().unwrap();
-        scope.get_var(name)
+        self.current.lock().unwrap().get_var(name)
     }
 
-    fn set_var(&mut self, name: &str, value: Value) {
-        let mut scope = self.current_scope.lock().unwrap();
-        scope.set_var(name, value)
+    fn set_var(&mut self, name: String, value: Value) {
+        self.current.lock().unwrap().set_var(name, value)
     }
 
-    fn stack_push(&mut self, scope: Arc<Mutex<Scope>>) {
-        self.stack.push(self.current_scope.clone());
-        self.current_scope = scope;
+    fn push_stack(&mut self, frame: Arc<Mutex<Frame>>) {
+        self.stack.push(self.current.clone());
+        self.current = frame;
     }
 
-    fn stack_pop(&mut self) {
-        if let Some(scope) = self.stack.pop() {
-            self.current_scope = scope;
+    fn pop_stack(&mut self) {
+        if let Some(frame) = self.stack.pop() {
+            self.current = frame;
         } else {
             panic!("Can not pop empty stack");
         }
+    }
+
+    fn export_scope_chain(&self) -> ScopeChain {
+        let current = self.current.lock().unwrap();
+
+        let mut chain = current.scope_chain.clone();
+        chain.push(current.scope.clone());
+
+        chain
     }
 }
 
@@ -179,13 +228,14 @@ fn throw(value: Value) -> Result<Value, Throw> {
 }
 
 fn eval_func(closure: Closure, args: Vec<Value>, ctx: &mut Context) -> Result<Value, Throw> {
-    let scope = Scope::extending(closure.scope);
+    let frame = Frame::for_closure(closure.scope_chain);
+    let frame = Arc::new(Mutex::new(frame));
 
-    ctx.stack_push(Arc::new(Mutex::new(scope)));
+    ctx.push_stack(frame);
 
     let result = eval_expr(closure.function.expression, ctx);
 
-    ctx.stack_pop();
+    ctx.pop_stack();
 
     result
 }
@@ -219,7 +269,7 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Value, Throw> {
         }
         Expression::Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
-            ctx.set_var(&declaration.id.name, value.clone());
+            ctx.set_var(declaration.id.name, value.clone());
             Ok(value)
         }
         Expression::Block(block) => {
@@ -234,7 +284,7 @@ fn eval_expr(expr: Expression, ctx: &mut Context) -> Result<Value, Throw> {
         }),
         Expression::FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
             function: *functio_literal,
-            scope: ctx.current_scope.clone(),
+            scope_chain: ctx.export_scope_chain(),
         }))),
         Expression::NumberLiteral(number_literal) => Ok(Value::Number(number_literal.value)),
         Expression::StringLiteral(string_literal) => Ok(Value::String(string_literal.value)),
