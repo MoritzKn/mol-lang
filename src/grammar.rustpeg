@@ -64,7 +64,7 @@ block -> Block
     = "{" __ block:expr_list __ "}" { block }
 
 identifier -> Identifier
-    = #quiet<name:$([a-zA-Z]+) { Identifier{ name: name.to_string() } }>
+    = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Identifier{ name: name.to_string() } }>
     / #expected("identifier")
 
 declaration -> Declaration
