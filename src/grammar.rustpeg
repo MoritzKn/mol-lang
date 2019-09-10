@@ -61,7 +61,7 @@ atom -> Expression
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
 
 block -> Block
-    = "{" __ body:block_body __ "}" { Block { body } }
+    = "do" __ "{" __ body:block_body __ "}" { Block { body } }
 
 id -> Id
     = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Id{ name: name.to_string() } }>
