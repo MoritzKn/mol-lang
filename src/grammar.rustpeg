@@ -93,8 +93,20 @@ wrapped_slot -> Slot
 slot_list -> Vec<Slot>
     = wrapped_slot ** ","
 
+// IDEA: We have two options for number literals
+// 1. ([0-9]+ "."? [0-9]*)
+// 2. ([0-9]+ ("." [0-9]+)?)
+//
+// Option one is like JS and following is all vaild:
+// - 12.12
+// - 12.
+// - 12..toString()
+// The second might be a bit more intuitive (?) and allows the following
+// - 12.12
+// - 12.toString()
+//
 number_literal -> NumberLiteral
-    = value:$([0-9]+) { NumberLiteral{ value: value.parse().unwrap() } }
+    = value:$([0-9]+ "."? [0-9]*) { NumberLiteral{ value: value.parse().unwrap() } }
 
 string_literal -> StringLiteral
     = "\"" value:$([^"]*) "\"" { StringLiteral{ value: value.to_string() } }
