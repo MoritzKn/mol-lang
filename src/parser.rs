@@ -1,8 +1,27 @@
-use crate::ast::{Expression, Id, Program};
+use crate::ast::{Call, Expression, Id, MemberAccess, Program};
 
 enum ExpressionTail {
     MemberAccess(Id),
     Call(Vec<Expression>),
+}
+
+impl ExpressionTail {
+    // NOTE: Usage in grammar not recognised
+    #![allow(dead_code)]
+    pub fn prepend(self, expr: Expression) -> Expression {
+        match self {
+            ExpressionTail::MemberAccess(property) => {
+                Expression::MemberAccess(Box::new(MemberAccess {
+                    object: expr,
+                    property,
+                }))
+            }
+            ExpressionTail::Call(arguments) => Expression::Call(Box::new(Call {
+                callee: expr,
+                arguments,
+            })),
+        }
+    }
 }
 
 mod grammar {

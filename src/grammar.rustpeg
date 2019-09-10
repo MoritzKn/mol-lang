@@ -2,61 +2,40 @@ use crate::ast::*;
 use super::ExpressionTail;
 
 pub program -> Program
-    = body:block_body { Program{ body } }
+    = body:block_body { Program { body } }
 
 block_body -> Vec<Expression>
-    = stms:wrapped_stm* expr:expr? __ {
-        let body = if let Some(expr) = expr {
-            [&stms[..], &[expr]].concat()
-        } else {
-            stms
-        };
+    = body:wrapped_expr ** ";" __ ";"? __ { body }
 
-        body
-    }
-
-wrapped_stm -> Expression
-    = __ s:stm __ { s }
-
-stm -> Expression
-    = expr:expr __ ";" { expr }
+wrapped_expr -> Expression
+    = __ expr:expr __ { expr }
 
 expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
     / fl:function_literal { Expression::FunctionLiteral(Box::new(fl)) }
-    / head:wrapped_atom tail:expr_tail* {
-        let mut current = head;
-        for tail_part in tail {
-            current = match tail_part {
-                ExpressionTail::MemberAccess(id) => {
-                    Expression::MemberAccess(Box::new(MemberAccess {
-                        object: current,
-                        property: id,
-                    }))
-                }
-                ExpressionTail::Call(args) => Expression::Call(Box::new(Call {
-                    callee: current,
-                    arguments: args,
-                })),
-            }
-        }
-        current
+    / head:atom tail:expr_tail* {
+        let mut full = head;
+        for part in tail { full = part.prepend(full) }
+        full
     }
+
+declaration -> Declaration
+    = "let" __ id:id __ "=" __ value:expr { Declaration{ id, value } }
 
 expr_tail -> ExpressionTail
     = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
 
 expr_list -> Vec<Expression>
-    = expr ** ","
+    = expr:wrapped_atom ** "," __ ","? { expr }
 
 wrapped_atom -> Expression
-    = __ a:atom __ { a }
+    = __ atom:atom __ { atom }
 
 atom -> Expression
     = "(" __ expr:expr __ ")" { expr }
     / block:block { Expression::Block(Box::new(block)) }
-    / i:id { Expression::Id(Box::new(i)) }
+    / id:id { Expression::Id(Box::new(id)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
 
@@ -67,49 +46,47 @@ id -> Id
     = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Id{ name: name.to_string() } }>
     / #expected("identifier")
 
-declaration -> Declaration
-    = "let" __ i:id __ "=" __ e:expr { Declaration{ id: i, value: e } }
-
 function_literal -> FunctionLiteral
     = "(" __ slots:slot_list __ ")" __  "=>" __ expression:expr {
-        FunctionLiteral{
-            id: Id{ name: "anonymous".to_string() },
+        FunctionLiteral {
+            id: Id { name: String::from("anonymous") },
             slots,
             expression,
         }
     }
 
-slot_type_sufix -> Id
-    = ":" __ ty:id { ty }
-
-slot -> Slot
-    = id:id __ ty:slot_type_sufix? {
-        Slot { id, ty: ty.unwrap_or(Id{ name: String::from("Any") }) }
-    }
+slot_list -> Vec<Slot>
+    = slots:wrapped_slot ** "," __ ","? { slots }
 
 wrapped_slot -> Slot
     = __ slot:slot __ { slot }
 
-slot_list -> Vec<Slot>
-    = wrapped_slot ** ","
+slot -> Slot
+    = id:id __ ty:slot_type_sufix? {
+        Slot { id, ty: ty.unwrap_or(Id { name: String::from("Any") }) }
+    }
+
+slot_type_sufix -> Id
+    = ":" __ ty:id { ty }
+
 
 // IDEA: We have two options for number literals
 // 1. ([0-9]+ "."? [0-9]*)
 // 2. ([0-9]+ ("." [0-9]+)?)
 //
-// Option one is like JS and following is all vaild:
+// Option one is like JS and the following is all vaild:
 // - 12.12
 // - 12.
 // - 12..toString()
-// The second might be a bit more intuitive (?) and allows the following
+// The second might be a bit more intuitive (?) and allows the following:
 // - 12.12
 // - 12.toString()
 //
 number_literal -> NumberLiteral
-    = value:$([0-9]+ "."? [0-9]*) { NumberLiteral{ value: value.parse().unwrap() } }
+    = value:$([0-9]+ "."? [0-9]*) { NumberLiteral { value: value.parse().unwrap() } }
 
 string_literal -> StringLiteral
-    = "\"" value:$([^"]*) "\"" { StringLiteral{ value: value.to_string() } }
+    = "\"" value:$([^"]*) "\"" { StringLiteral { value: value.to_string() } }
 
 __ = #quiet<(whitespace / eol)*>
 
