@@ -22,7 +22,7 @@ pub fn start() {
                         println!("");
                         println!("Syntax {}", error);
                         println!("");
-                    },
+                    }
                 }
 
                 rl.add_history_entry(line);

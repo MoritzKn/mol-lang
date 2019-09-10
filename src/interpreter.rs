@@ -1,6 +1,6 @@
 use crate::ast;
 use std::collections::HashMap;
-use std::sync::{Weak, Arc, Mutex};
+use std::sync::{Arc, Mutex, Weak};
 use std::{fmt, fmt::Display};
 
 type ScopeChain = Vec<Arc<Mutex<Scope>>>;
@@ -222,7 +222,8 @@ impl Context {
     fn export_scope_chain(&self) -> ScopeChain {
         let current = self.current.lock().unwrap();
 
-        let mut chain = current.scope_chain
+        let mut chain = current
+            .scope_chain
             .iter()
             .map(|scope| scope.upgrade().expect("Scope already dropped"))
             .collect::<ScopeChain>();

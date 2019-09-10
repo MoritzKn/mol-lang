@@ -1,6 +1,5 @@
 use std::{fmt, fmt::Display};
 
-
 fn join<W: fmt::Write, T: Display>(f: &mut W, list: &Vec<T>, seperator: &str) -> fmt::Result {
     let mut first = true;
     for item in list {
@@ -64,7 +63,8 @@ impl Display for Block {
         join(&mut body, &self.body, ";\n")?;
         let body = body
             .split("\n")
-            .map(|line| format!("    {}", line)).collect::<Vec<String>>()
+            .map(|line| format!("    {}", line))
+            .collect::<Vec<String>>()
             .join("\n");
         write!(f, "{}", body)?;
 
@@ -175,9 +175,7 @@ pub mod build {
     use super::*;
 
     pub fn program(body: Vec<Expression>) -> Program {
-        Program {
-            body,
-        }
+        Program { body }
     }
 
     pub fn expr_block(block: Block) -> Expression {
@@ -248,7 +246,11 @@ pub mod build {
     }
 
     pub fn functio_literal(id: Id, slots: Vec<Slot>, expression: Expression) -> FunctionLiteral {
-        FunctionLiteral { id, slots, expression }
+        FunctionLiteral {
+            id,
+            slots,
+            expression,
+        }
     }
 
     pub fn functio_literal_expr(id: Id, slots: Vec<Slot>, expression: Expression) -> Expression {
