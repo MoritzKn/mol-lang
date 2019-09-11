@@ -151,12 +151,6 @@ impl Display for Frame {
     }
 }
 
-impl Drop for Frame {
-    fn drop(&mut self) {
-        println!("[!] Dropping {}", self);
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Context {
     current: Arc<Mutex<Frame>>,
