@@ -292,7 +292,8 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
             // Ok(object)
             throw(Value::String(format!(
                 "TypeError: Cannot access property '{}' of {}",
-                member_access.property, object.print()
+                member_access.property,
+                object.print()
             )))
         }
         Declaration(declaration) => {
