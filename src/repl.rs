@@ -29,10 +29,7 @@ pub fn start() {
             }
             Err(ReadlineError::Interrupted) => break,
             Err(ReadlineError::Eof) => break,
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
-            }
+            Err(err) => println!("Error: {:?}", err),
         }
     }
 }
