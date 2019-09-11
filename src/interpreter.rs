@@ -302,7 +302,7 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
         }
         Block(block) => eval_expr_list(block.body, ctx),
         Id(id) => ctx.get_var(&id).ok_or(Throw {
-            value: Value::String(format!("ReferenceError: {} not defined", id)),
+            value: Value::String(format!("ReferenceError: {} is not defined", id)),
         }),
         FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
             function: *functio_literal,
