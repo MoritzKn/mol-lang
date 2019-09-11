@@ -1,17 +1,5 @@
 use std::{fmt, fmt::Display};
 
-fn join<W: fmt::Write, T: Display>(f: &mut W, list: &Vec<T>, seperator: &str) -> fmt::Result {
-    let mut first = true;
-    for item in list {
-        if !first {
-            write!(f, "{}", seperator)?;
-        };
-        write!(f, "{}", item)?;
-        first = false;
-    }
-    Ok(())
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
     pub body: Vec<Expression>,
@@ -57,18 +45,18 @@ pub struct Block {
 
 impl Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", "{\n")?;
+        writeln!(f, "{{")?;
 
         let mut body = String::new();
         join(&mut body, &self.body, ";\n")?;
         let body = body
-            .split("\n")
+            .split('\n')
             .map(|line| format!("    {}", line))
             .collect::<Vec<String>>()
             .join("\n");
         write!(f, "{}", body)?;
 
-        write!(f, "{}", "\n}")
+        write!(f, "\n}}")
     }
 }
 
@@ -168,6 +156,18 @@ impl Display for StringLiteral {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "\"{}\"", self.value)
     }
+}
+
+fn join<W: fmt::Write, T: Display>(f: &mut W, list: &[T], seperator: &str) -> fmt::Result {
+    let mut first = true;
+    for item in list {
+        if !first {
+            write!(f, "{}", seperator)?;
+        };
+        write!(f, "{}", item)?;
+        first = false;
+    }
+    Ok(())
 }
 
 #[allow(dead_code)]

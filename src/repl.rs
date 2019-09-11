@@ -19,9 +19,9 @@ pub fn start() {
                     },
                     Err(error) => {
                         println!("  {: >1$}", "^", error.column);
-                        println!("");
+                        println!();
                         println!("Syntax {}", error);
-                        println!("");
+                        println!();
                     }
                 }
 

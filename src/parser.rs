@@ -25,7 +25,7 @@ impl ExpressionTail {
 }
 
 mod grammar {
-    #![allow(clippy::all)]
+    #![allow(warnings, clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
 }
 
