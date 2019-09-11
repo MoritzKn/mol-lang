@@ -287,8 +287,13 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
         Call(call) => call_fn(*call, ctx),
         MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
-            // object.get(&property);
-            Ok(object)
+            // TODO: implement mamber access as soon as we have structs
+            // object.get(&member_access.property);
+            // Ok(object)
+            throw(Value::String(format!(
+                "TypeError: Cannot access property '{}' of {}",
+                member_access.property, object.print()
+            )))
         }
         Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
