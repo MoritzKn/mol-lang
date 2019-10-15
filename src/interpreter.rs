@@ -209,17 +209,17 @@ impl Context {
         );
 
         scope.set_var(
-            "add".to_owned(),
+            "sum".to_owned(),
             Value::NativeFunction(|args| {
-                let mut sum = 0.0;
-
-                for arg in args {
-                    if let Value::Number(value) = arg {
-                        sum += value;
-                    };
-                }
-
-                Ok(Value::Number(sum))
+                args.iter()
+                    .try_fold(0.0, |acc, curr| match curr {
+                        Value::Number(curr) => Ok(acc + curr),
+                        _ => Err(Value::from(format!(
+                            "TypeError: Can not sum elements of type {}",
+                            curr.get_type()
+                        ))),
+                    })
+                    .map(Value::Number)
             }),
         );
 
