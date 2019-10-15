@@ -18,12 +18,6 @@ impl Display for Closure {
     }
 }
 
-// #[derive(Debug, Clone, PartialEq)]
-// struct Instance {
-//     name: String,
-//     value: HashMap(String, Value),
-// }
-
 type NativeFunction = fn(Vec<Value>) -> Result<Value, Value>;
 
 #[derive(Debug, Clone)]
@@ -31,9 +25,8 @@ pub enum Value {
     Void,
     Number(f64),
     String(String),
-    // Map(HashMap<String, Value>),
-    // List(Vec<Value>),
-    // Struct(HashMap<String, Value>, Box<Struct>),
+    List(Vec<Value>),
+    Map(HashMap<String, Value>),
     Function(Box<Closure>),
     NativeFunction(NativeFunction),
 }
@@ -44,6 +37,8 @@ impl Value {
             Value::Void => String::from("Void"),
             Value::Number(_) => String::from("Number"),
             Value::String(_) => String::from("String"),
+            Value::List(_) => String::from("List"),
+            Value::Map(_) => String::from("Map"),
             Value::Function(_) => String::from("Function"),
             Value::NativeFunction(_) => String::from("NativeFunction"),
         }
@@ -54,6 +49,12 @@ impl Value {
             Value::Void => "void".to_owned(),
             Value::Number(value) => value.to_string(),
             Value::String(value) => value.clone(),
+            Value::List(value) => value
+                .iter()
+                .map(|v| v.as_string())
+                .collect::<Vec<String>>()
+                .join(", "),
+            Value::Map(value) => format!("{:?}", value),
             Value::Function(value) => format!("{}", value),
             Value::NativeFunction(value) => format!("NativeFunction({:?})", value),
         }
@@ -62,6 +63,14 @@ impl Value {
     pub fn print(&self) -> String {
         match self {
             Value::String(value) => format!("\"{}\"", value),
+            Value::List(value) => format!(
+                "[{}]",
+                value
+                    .iter()
+                    .map(|v| v.print())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
             _ => self.as_string(),
         }
     }
@@ -74,6 +83,12 @@ impl Display for Value {
             Value::NativeFunction(_) => write!(f, "{}", self.as_string()),
             _ => write!(f, "{}({})", self.get_type(), self.as_string()),
         }
+    }
+}
+
+impl Default for Value {
+    fn default() -> Self {
+        Value::Void
     }
 }
 
@@ -92,6 +107,18 @@ impl From<String> for Value {
 impl From<&str> for Value {
     fn from(string: &str) -> Value {
         Value::String(string.to_owned())
+    }
+}
+
+impl From<Vec<Value>> for Value {
+    fn from(list: Vec<Value>) -> Value {
+        Value::List(list)
+    }
+}
+
+impl From<HashMap<String, Value>> for Value {
+    fn from(map: HashMap<String, Value>) -> Value {
+        Value::Map(map)
     }
 }
 
@@ -209,6 +236,22 @@ impl Context {
         );
 
         scope.set_var(
+            "dummyList".to_owned(),
+            Value::from(vec![Value::from("foo"), Value::from("bar")]),
+        );
+
+        scope.set_var(
+            "typeof".to_owned(),
+            Value::NativeFunction(|args| {
+                args.get(0)
+                    .map(|v| Value::from(v.get_type()))
+                    .ok_or_else(|| Value::from("TypeError: Expected one argument but got 0"))
+            }),
+        );
+
+        let mut math = HashMap::new();
+
+        math.insert(
             "sum".to_owned(),
             Value::NativeFunction(|args| {
                 args.iter()
@@ -223,14 +266,7 @@ impl Context {
             }),
         );
 
-        scope.set_var(
-            "typeof".to_owned(),
-            Value::NativeFunction(|args| {
-                args.get(0)
-                    .map(|v| Value::from(v.get_type()))
-                    .ok_or_else(|| Value::from("TypeError: Expected one argument but got 0"))
-            }),
-        );
+        scope.set_var("Math".to_owned(), Value::Map(math));
 
         Self {
             current: Arc::new(Mutex::new(scope)),
@@ -324,15 +360,18 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
 
-            // TODO: implement mamber access as soon as we have structs
-            // object.get(&member_access.property);
-            // Ok(object)
-
-            Err(Value::from(format!(
-                "TypeError: Cannot access property '{}' of {}",
-                member_access.property,
-                object.print()
-            )))
+            if let Value::Map(map) = object {
+                Ok(map
+                    .get(&member_access.property.name)
+                    .cloned()
+                    .unwrap_or_default())
+            } else {
+                Err(Value::from(format!(
+                    "TypeError: Can not access property '{}' of {}",
+                    member_access.property,
+                    object.print()
+                )))
+            }
         }
         Declaration(declaration) => {
             let value = eval_expr(declaration.value, ctx)?;
