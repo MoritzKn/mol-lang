@@ -237,7 +237,7 @@ pub mod build {
 
     pub fn id(name: &str) -> Id {
         Id {
-            name: name.to_string(),
+            name: name.to_owned(),
         }
     }
 
@@ -267,7 +267,7 @@ pub mod build {
 
     pub fn string_literal(value: &str) -> StringLiteral {
         StringLiteral {
-            value: value.to_string(),
+            value: value.to_owned(),
         }
     }
 

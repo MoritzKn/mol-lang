@@ -24,6 +24,8 @@ impl Display for Closure {
 //     value: HashMap(String, Value),
 // }
 
+type NativeFunction = fn(Vec<Value>) -> Result<Value, Value>;
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Void,
@@ -33,7 +35,7 @@ pub enum Value {
     // List(Vec<Value>),
     // Struct(HashMap<String, Value>, Box<Struct>),
     Function(Box<Closure>),
-    NativeFunction(fn(Vec<Value>) -> Result<Value, Throw>),
+    NativeFunction(NativeFunction),
 }
 
 impl Value {
@@ -49,7 +51,7 @@ impl Value {
 
     pub fn to_string(&self) -> String {
         match self {
-            Value::Void => "void".to_string(),
+            Value::Void => "void".to_owned(),
             Value::Number(value) => value.to_string(),
             Value::String(value) => value.clone(),
             Value::Function(value) => format!("{}", value),
@@ -72,6 +74,36 @@ impl Display for Value {
             Value::NativeFunction(_) => write!(f, "{}", self.to_string()),
             _ => write!(f, "{}({})", self.get_type(), self.to_string()),
         }
+    }
+}
+
+impl From<f64> for Value {
+    fn from(number: f64) -> Value {
+        Value::Number(number)
+    }
+}
+
+impl From<String> for Value {
+    fn from(string: String) -> Value {
+        Value::String(string)
+    }
+}
+
+impl From<&str> for Value {
+    fn from(string: &str) -> Value {
+        Value::String(string.to_owned())
+    }
+}
+
+impl From<Closure> for Value {
+    fn from(func: Closure) -> Value {
+        Value::Function(Box::new(func))
+    }
+}
+
+impl From<NativeFunction> for Value {
+    fn from(func: NativeFunction) -> Value {
+        Value::NativeFunction(func)
     }
 }
 
@@ -162,17 +194,22 @@ impl Context {
         let mut scope = Frame::new();
 
         scope.set_var(
-            "log".to_string(),
+            "log".to_owned(),
             Value::NativeFunction(|args| {
-                let args: Vec<String> = args.iter().map(|v| v.to_string()).collect();
-                println!("{}", args.join(" "));
+                let text = args
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(" ");
+
+                println!("{}", text);
 
                 Ok(Value::Void)
             }),
         );
 
         scope.set_var(
-            "add".to_string(),
+            "add".to_owned(),
             Value::NativeFunction(|args| {
                 let mut sum = 0.0;
 
@@ -183,6 +220,15 @@ impl Context {
                 }
 
                 Ok(Value::Number(sum))
+            }),
+        );
+
+        scope.set_var(
+            "typeof".to_owned(),
+            Value::NativeFunction(|args| {
+                args.get(0)
+                    .map(|v| Value::from(v.get_type()))
+                    .ok_or_else(|| Value::from("TypeError: Expected one argument but got 0"))
             }),
         );
 
@@ -226,17 +272,7 @@ impl Context {
         chain
     }
 }
-
-#[derive(Debug, Clone)]
-pub struct Throw {
-    pub value: Value,
-}
-
-fn throw(value: Value) -> Result<Value, Throw> {
-    Err(Throw { value })
-}
-
-fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Throw> {
+fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
     let frame = Frame::for_closure(closure.scope_chain);
     let frame = Arc::new(Mutex::new(frame));
 
@@ -253,7 +289,7 @@ fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Resul
     result
 }
 
-fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Throw> {
+fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Value> {
     let callee = eval_expr(call.callee, ctx)?;
 
     let mut args = vec![];
@@ -265,14 +301,14 @@ fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Throw> {
     match callee {
         Value::Function(func) => eval_func(*func, args, ctx),
         Value::NativeFunction(func) => func(args),
-        _ => throw(Value::String(format!(
+        _ => Err(Value::from(format!(
             "TypeError: {} is not a function",
             callee.print()
         ))),
     }
 }
 
-fn eval_expr_list(expr_list: Vec<ast::Expression>, ctx: &mut Context) -> Result<Value, Throw> {
+fn eval_expr_list(expr_list: Vec<ast::Expression>, ctx: &mut Context) -> Result<Value, Value> {
     let mut final_val = Value::Void;
     for expr in expr_list {
         final_val = eval_expr(expr, ctx)?;
@@ -280,17 +316,19 @@ fn eval_expr_list(expr_list: Vec<ast::Expression>, ctx: &mut Context) -> Result<
     Ok(final_val)
 }
 
-fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
+fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
     use ast::Expression::*;
 
     match expr {
         Call(call) => call_fn(*call, ctx),
         MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
+
             // TODO: implement mamber access as soon as we have structs
             // object.get(&member_access.property);
             // Ok(object)
-            throw(Value::String(format!(
+
+            Err(Value::from(format!(
                 "TypeError: Cannot access property '{}' of {}",
                 member_access.property,
                 object.print()
@@ -302,18 +340,18 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Throw> {
             Ok(value)
         }
         Block(block) => eval_expr_list(block.body, ctx),
-        Id(id) => ctx.get_var(&id).ok_or(Throw {
-            value: Value::String(format!("ReferenceError: {} is not defined", id)),
-        }),
-        FunctionLiteral(functio_literal) => Ok(Value::Function(Box::new(Closure {
-            function: *functio_literal,
+        Id(id) => ctx
+            .get_var(&id)
+            .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),
+        FunctionLiteral(function) => Ok(Value::from(Closure {
+            function: *function,
             scope_chain: ctx.export_scope_chain(),
-        }))),
-        NumberLiteral(number_literal) => Ok(Value::Number(number_literal.value)),
-        StringLiteral(string_literal) => Ok(Value::String(string_literal.value)),
+        })),
+        NumberLiteral(number_literal) => Ok(Value::from(number_literal.value)),
+        StringLiteral(string_literal) => Ok(Value::from(string_literal.value)),
     }
 }
 
-pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Value, Throw> {
+pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Value, Value> {
     eval_expr_list(program.body, ctx)
 }

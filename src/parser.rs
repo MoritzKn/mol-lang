@@ -51,7 +51,7 @@ mod tests {
         let result = parse_string(r#"test(42, "hello")"#).unwrap();
         let ast = program(vec![call_expr(
             id_expr("test"),
-            vec![number_literal_expr(42f64), string_literal_expr("hello")],
+            vec![number_literal_expr(42.0), string_literal_expr("hello")],
         )]);
 
         assert_eq!(result, ast);
@@ -62,7 +62,7 @@ mod tests {
         let result = parse_string(r#" test ( 42 , "hello" ) ; "#).unwrap();
         let ast = program(vec![call_expr(
             id_expr("test"),
-            vec![number_literal_expr(42f64), string_literal_expr("hello")],
+            vec![number_literal_expr(42.0), string_literal_expr("hello")],
         )]);
 
         assert_eq!(result, ast);
@@ -73,7 +73,7 @@ mod tests {
         let result = parse_string(r#"test(42,)"#).unwrap();
         let ast = program(vec![call_expr(
             id_expr("test"),
-            vec![number_literal_expr(42f64)],
+            vec![number_literal_expr(42.0)],
         )]);
 
         assert_eq!(result, ast);
