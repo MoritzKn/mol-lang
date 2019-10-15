@@ -49,7 +49,7 @@ impl Value {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         match self {
             Value::Void => "void".to_owned(),
             Value::Number(value) => value.to_string(),
@@ -62,7 +62,7 @@ impl Value {
     pub fn print(&self) -> String {
         match self {
             Value::String(value) => format!("\"{}\"", value),
-            _ => self.to_string(),
+            _ => self.as_string(),
         }
     }
 }
@@ -71,8 +71,8 @@ impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Void => write!(f, "{}", self.get_type()),
-            Value::NativeFunction(_) => write!(f, "{}", self.to_string()),
-            _ => write!(f, "{}({})", self.get_type(), self.to_string()),
+            Value::NativeFunction(_) => write!(f, "{}", self.as_string()),
+            _ => write!(f, "{}({})", self.get_type(), self.as_string()),
         }
     }
 }
