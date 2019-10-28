@@ -225,7 +225,7 @@ impl Context {
             Value::NativeFunction(|args| {
                 let text = args
                     .iter()
-                    .map(|v| v.to_string())
+                    .map(|v| v.as_string())
                     .collect::<Vec<String>>()
                     .join(" ");
 
