@@ -29,7 +29,9 @@ mod grammar {
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
 }
 
-pub fn parse_string(string: &str) -> Result<Program, grammar::ParseError> {
+pub type ParseError = grammar::ParseError;
+
+pub fn parse_string(string: &str) -> Result<Program, ParseError> {
     grammar::program(string)
 }
 

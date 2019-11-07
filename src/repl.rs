@@ -15,7 +15,7 @@ pub fn start() {
                     Ok(program) => match interpreter::exec_with_context(program, &mut context) {
                         Ok(interpreter::Value::Void) => (),
                         Ok(value) => println!("{}", value.print()),
-                        Err(throw) => println!("{}", throw.as_string()),
+                        Err(throw) => println!("Uncaught {}", throw.as_string()),
                     },
                     Err(error) => {
                         println!("  {: >1$}", "^", error.column);

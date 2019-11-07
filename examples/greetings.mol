@@ -1,0 +1,13 @@
+log("Hello, what's your name?");
+
+let name = "John Doe";
+
+void();
+
+// TODO: When readline is implemted do it like so
+// let name = readline;
+
+// TODO: No concat operator yet :(
+// log("Nice to meet you, " ++ name ++ ".");
+
+log(name);

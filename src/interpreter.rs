@@ -394,3 +394,8 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
 pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Value, Value> {
     eval_expr_list(program.body, ctx)
 }
+
+pub fn exec(program: ast::Program) -> Result<Value, Value> {
+    let mut context = Context::new();
+    eval_expr_list(program.body, &mut context)
+}
