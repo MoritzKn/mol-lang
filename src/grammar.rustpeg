@@ -88,10 +88,14 @@ number_literal -> NumberLiteral
 string_literal -> StringLiteral
     = "\"" value:$([^"]*) "\"" { StringLiteral { value: value.to_owned() } }
 
-__ = #quiet<(whitespace / eol)*>
+__ = #quiet<(whitespace / eol / comment)*>
+
+whitespace
+    = [ \t\u{00A0}\u{FEFF}\u{1680}\u{180E}\u{2000}-\u{200A}\u{202F}\u{205F}\u{3000}]
 
 eol
     = "\n" / "\r\n" / "\r" / "\u{2028}" / "\u{2029}"
 
-whitespace
-    = [ \t\u{00A0}\u{FEFF}\u{1680}\u{180E}\u{2000}-\u{200A}\u{202F}\u{205F}\u{3000}]
+comment
+    = "//" (!eol .)* eol
+    / "/*" (!"*/" .)* "*/"
