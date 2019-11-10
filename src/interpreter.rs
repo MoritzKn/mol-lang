@@ -388,13 +388,12 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         NumberLiteral(number_literal) => Ok(Value::from(number_literal.value)),
         StringLiteral(string_literal) => Ok(Value::from(string_literal.value)),
         Function(function) => {
-
             let value = Value::from(Closure {
                 name: function.id.to_owned().name,
                 expression: function.expression,
                 slots: function.slots,
                 scope_chain: ctx.export_scope_chain(),
-                });
+            });
             ctx.set_var(&function.id, value.clone());
             Ok(value)
         }

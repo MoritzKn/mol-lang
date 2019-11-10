@@ -264,6 +264,13 @@ pub mod build {
         expr_id(id(name))
     }
 
+    pub fn slot(name: &str, ty: &str) -> Slot {
+        Slot {
+            id: id(name),
+            ty: id(ty),
+        }
+    }
+
     pub fn number_literal(value: f64) -> NumberLiteral {
         NumberLiteral { value }
     }
