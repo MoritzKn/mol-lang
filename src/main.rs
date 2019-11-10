@@ -5,6 +5,7 @@ mod ast;
 mod interpreter;
 mod parser;
 mod repl;
+mod stdlib;
 
 use clap::{App, Arg};
 use std::fs;

@@ -77,11 +77,15 @@ impl Display for Value {
             Value::Void => write!(f, "void"),
             Value::Number(value) => write!(f, "{}", value),
             Value::String(value) => write!(f, "{}", value),
-            Value::List(value) => write!(f, "{}", value
-                .iter()
-                .map(|v| v.to_string())
-                .collect::<Vec<String>>()
-                .join(", ")),
+            Value::List(value) => write!(
+                f,
+                "{}",
+                value
+                    .iter()
+                    .map(|v| v.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ")
+            ),
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
             Value::NativeFunction(value) => write!(f, "[NativeFunction {:?}]", value),
@@ -219,57 +223,37 @@ pub struct Context {
     stack: Vec<Arc<Mutex<Frame>>>,
 }
 
+pub fn register<V: Into<Value>>(scope: &mut Frame, name: &str, value: V) {
+    scope.set_var(name.to_owned(), value.into());
+}
+
+pub fn register_in_ns<V: Into<Value>>(ns: &mut HashMap<String, Value>, name: &str, value: V) {
+    ns.insert(name.to_owned(), value.into());
+}
+
+pub fn namespace(scope: &mut Frame, name: &str, factory: fn(&mut HashMap<String, Value>)) {
+    let mut ns: HashMap<String, Value> = HashMap::new();
+    factory(&mut ns);
+    scope.set_var(name.to_owned(), ns.into());
+}
+
 impl Context {
     pub fn new() -> Self {
+        use crate::stdlib as lib;
         let mut scope = Frame::new();
 
-        scope.set_var(
-            "log".to_owned(),
-            Value::NativeFunction(|args| {
-                let text = args
-                    .iter()
-                    .map(|v| v.to_string())
-                    .collect::<Vec<String>>()
-                    .join(" ");
+        register::<NativeFunction>(&mut scope, "typeof", lib::type_of);
 
-                println!("{}", text);
+        namespace(&mut scope, "console", |mut ns| {
+            register_in_ns::<NativeFunction>(&mut ns, "log", lib::console::log);
+            register_in_ns::<NativeFunction>(&mut ns, "inspect", lib::console::inspect);
+        });
 
-                Ok(Value::Void)
-            }),
-        );
-
-        scope.set_var(
-            "dummyList".to_owned(),
-            Value::from(vec![Value::from("foo"), Value::from("bar")]),
-        );
-
-        scope.set_var(
-            "typeof".to_owned(),
-            Value::NativeFunction(|args| {
-                args.get(0)
-                    .map(|v| Value::from(v.get_type()))
-                    .ok_or_else(|| Value::from("TypeError: Expected one argument but got 0"))
-            }),
-        );
-
-        let mut math = HashMap::new();
-
-        math.insert(
-            "sum".to_owned(),
-            Value::NativeFunction(|args| {
-                args.iter()
-                    .try_fold(0.0, |acc, curr| match curr {
-                        Value::Number(curr) => Ok(acc + curr),
-                        _ => Err(Value::from(format!(
-                            "TypeError: Can not sum elements of type {}",
-                            curr.get_type()
-                        ))),
-                    })
-                    .map(Value::Number)
-            }),
-        );
-
-        scope.set_var("Math".to_owned(), Value::Map(math));
+        namespace(&mut scope, "math", |mut ns| {
+            register_in_ns::<NativeFunction>(&mut ns, "sum", lib::math::sum);
+            register_in_ns::<NativeFunction>(&mut ns, "greatest", lib::math::greatest);
+            register_in_ns::<NativeFunction>(&mut ns, "smallest", lib::math::smallest);
+        });
 
         Self {
             current: Arc::new(Mutex::new(scope)),

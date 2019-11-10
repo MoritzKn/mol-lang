@@ -9,7 +9,7 @@
 ## Utility
 - [x] typeof function
 - [x] Fix as_string vs to_string on Value
-- [ ] Super basic std lib
+- [x] Super basic std lib
 - [ ] Basic operators
 
 ## Grammar
