@@ -13,7 +13,7 @@
 - [ ] Fix as_string vs to_string on Value
 
 ## Grammar
-- [ ] Regular "function foo() {}" style functions
+- [x] Regular "function foo() {}" style functions
 - [ ] Reserved words in declarations (void, typeof)
 - [ ] Void expressions
 

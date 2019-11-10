@@ -2,8 +2,6 @@ log("Hello, what's your name?");
 
 let name = "John Doe";
 
-void();
-
 // TODO: When readline is implemted do it like so
 // let name = readline;
 

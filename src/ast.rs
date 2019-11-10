@@ -18,7 +18,8 @@ pub enum Expression {
     MemberAccess(Box<MemberAccess>),
     Declaration(Box<Declaration>),
     Id(Box<Id>),
-    FunctionLiteral(Box<FunctionLiteral>),
+    Function(Box<Function>),
+    Lambda(Box<Lambda>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
 }
@@ -31,9 +32,10 @@ impl Display for Expression {
             Expression::MemberAccess(value) => write!(f, "{}", value),
             Expression::Declaration(value) => write!(f, "{}", value),
             Expression::Id(value) => write!(f, "{}", value),
-            Expression::FunctionLiteral(value) => write!(f, "{}", value),
             Expression::NumberLiteral(value) => write!(f, "{}", value),
             Expression::StringLiteral(value) => write!(f, "{}", value),
+            Expression::Function(value) => write!(f, "{}", value),
+            Expression::Lambda(value) => write!(f, "{}", value),
         }
     }
 }
@@ -122,13 +124,27 @@ impl Display for Slot {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FunctionLiteral {
+pub struct Function {
     pub id: Id,
     pub slots: Vec<Slot>,
     pub expression: Expression,
 }
 
-impl Display for FunctionLiteral {
+impl Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "function {} (", self.id.name)?;
+        join(f, &self.slots, " ,")?;
+        write!(f, ") {}", self.expression)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lambda {
+    pub slots: Vec<Slot>,
+    pub expression: Expression,
+}
+
+impl Display for Lambda {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(")?;
         join(f, &self.slots, " ,")?;
@@ -196,11 +212,14 @@ pub mod build {
     pub fn expr_number_literal(number_literal: NumberLiteral) -> Expression {
         Expression::NumberLiteral(Box::new(number_literal))
     }
-    pub fn expr_function_literal(function_literal: FunctionLiteral) -> Expression {
-        Expression::FunctionLiteral(Box::new(function_literal))
-    }
     pub fn expr_string_literal(string_literal: StringLiteral) -> Expression {
         Expression::StringLiteral(Box::new(string_literal))
+    }
+    pub fn expr_function(function: Function) -> Expression {
+        Expression::Function(Box::new(function))
+    }
+    pub fn expr_lambda(lambda: Lambda) -> Expression {
+        Expression::Lambda(Box::new(lambda))
     }
 
     pub fn block(body: Vec<Expression>) -> Block {
@@ -245,18 +264,6 @@ pub mod build {
         expr_id(id(name))
     }
 
-    pub fn functio_literal(id: Id, slots: Vec<Slot>, expression: Expression) -> FunctionLiteral {
-        FunctionLiteral {
-            id,
-            slots,
-            expression,
-        }
-    }
-
-    pub fn functio_literal_expr(id: Id, slots: Vec<Slot>, expression: Expression) -> Expression {
-        expr_function_literal(functio_literal(id, slots, expression))
-    }
-
     pub fn number_literal(value: f64) -> NumberLiteral {
         NumberLiteral { value }
     }
@@ -273,5 +280,25 @@ pub mod build {
 
     pub fn string_literal_expr(value: &str) -> Expression {
         expr_string_literal(string_literal(value))
+    }
+
+    pub fn function(id: Id, slots: Vec<Slot>, expression: Expression) -> Function {
+        Function {
+            id,
+            slots,
+            expression,
+        }
+    }
+
+    pub fn function_expr(id: Id, slots: Vec<Slot>, expression: Expression) -> Expression {
+        expr_function(function(id, slots, expression))
+    }
+
+    pub fn lambda(slots: Vec<Slot>, expression: Expression) -> Lambda {
+        Lambda { slots, expression }
+    }
+
+    pub fn lambda_expr(slots: Vec<Slot>, expression: Expression) -> Expression {
+        expr_lambda(lambda(slots, expression))
     }
 }

@@ -8,13 +8,16 @@ type WeakScopeChain = Vec<Weak<Mutex<Scope>>>;
 
 #[derive(Debug, Clone)]
 pub struct Closure {
-    function: ast::FunctionLiteral,
+    name: String,
     scope_chain: ScopeChain,
+    slots: Vec<ast::Slot>,
+    expression: ast::Expression,
 }
 
 impl Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.function)
+        // TODO: Propper formating
+        write!(f, "[Function: {}]", self.name)
     }
 }
 
@@ -315,10 +318,10 @@ fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Resul
     ctx.push_stack(frame);
 
     for (i, arg) in args.drain(..).enumerate() {
-        ctx.set_var(&closure.function.slots[i].id, arg);
+        ctx.set_var(&closure.slots[i].id, arg);
     }
 
-    let result = eval_expr(closure.function.expression, ctx);
+    let result = eval_expr(closure.expression, ctx);
 
     ctx.pop_stack();
 
@@ -382,12 +385,25 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         Id(id) => ctx
             .get_var(&id)
             .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),
-        FunctionLiteral(function) => Ok(Value::from(Closure {
-            function: *function,
-            scope_chain: ctx.export_scope_chain(),
-        })),
         NumberLiteral(number_literal) => Ok(Value::from(number_literal.value)),
         StringLiteral(string_literal) => Ok(Value::from(string_literal.value)),
+        Function(function) => {
+
+            let value = Value::from(Closure {
+                name: function.id.to_owned().name,
+                expression: function.expression,
+                slots: function.slots,
+                scope_chain: ctx.export_scope_chain(),
+                });
+            ctx.set_var(&function.id, value.clone());
+            Ok(value)
+        }
+        Lambda(function) => Ok(Value::from(Closure {
+            name: "anonymous".to_owned(),
+            expression: function.expression,
+            slots: function.slots,
+            scope_chain: ctx.export_scope_chain(),
+        })),
     }
 }
 
