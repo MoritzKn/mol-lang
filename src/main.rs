@@ -41,13 +41,13 @@ fn exec_file(file: &str, cli: &Cli) {
 
             Ok(program) => match interpreter::exec(program) {
                 Err(error) => {
-                    println!("Uncaught {}", error.as_string());
+                    println!("Uncaught {}", error);
                     std::process::exit(1);
                 }
 
                 Ok(result) => {
                     if cli.args.contains_key("result") {
-                        println!("{}", result.as_string())
+                        println!("{}", result)
                     }
                 }
             },

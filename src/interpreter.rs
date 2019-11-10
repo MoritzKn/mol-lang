@@ -47,19 +47,11 @@ impl Value {
         }
     }
 
-    pub fn as_string(&self) -> String {
+    pub fn inspect(&self) -> String {
         match self {
-            Value::Void => "void".to_owned(),
-            Value::Number(value) => value.to_string(),
-            Value::String(value) => value.clone(),
-            Value::List(value) => value
-                .iter()
-                .map(|v| v.as_string())
-                .collect::<Vec<String>>()
-                .join(", "),
-            Value::Map(value) => format!("{:?}", value),
-            Value::Function(value) => format!("{}", value),
-            Value::NativeFunction(value) => format!("NativeFunction({:?})", value),
+            Value::Void => format!("{}", self.get_type()),
+            Value::NativeFunction(_) => format!("{}({:?})", self.get_type(), self),
+            _ => format!("{}({})", self.get_type(), self.to_string()),
         }
     }
 
@@ -74,7 +66,7 @@ impl Value {
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
-            _ => self.as_string(),
+            _ => self.to_string(),
         }
     }
 }
@@ -82,9 +74,17 @@ impl Value {
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Value::Void => write!(f, "{}", self.get_type()),
-            Value::NativeFunction(_) => write!(f, "{}", self.as_string()),
-            _ => write!(f, "{}({})", self.get_type(), self.as_string()),
+            Value::Void => write!(f, "void"),
+            Value::Number(value) => write!(f, "{}", value),
+            Value::String(value) => write!(f, "{}", value),
+            Value::List(value) => write!(f, "{}", value
+                .iter()
+                .map(|v| v.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")),
+            Value::Map(value) => write!(f, "{:?}", value),
+            Value::Function(value) => write!(f, "{}", value),
+            Value::NativeFunction(value) => write!(f, "[NativeFunction {:?}]", value),
         }
     }
 }
@@ -228,7 +228,7 @@ impl Context {
             Value::NativeFunction(|args| {
                 let text = args
                     .iter()
-                    .map(|v| v.as_string())
+                    .map(|v| v.to_string())
                     .collect::<Vec<String>>()
                     .join(" ");
 

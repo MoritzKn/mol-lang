@@ -8,9 +8,9 @@
 
 ## Utility
 - [x] typeof function
-- [ ] Basic operators
+- [x] Fix as_string vs to_string on Value
 - [ ] Super basic std lib
-- [ ] Fix as_string vs to_string on Value
+- [ ] Basic operators
 
 ## Grammar
 - [x] Regular "function foo() {}" style functions
