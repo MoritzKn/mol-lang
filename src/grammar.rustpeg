@@ -14,6 +14,9 @@ expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
     / f:function { Expression::Function(Box::new(f)) }
     / l:lambda { Expression::Lambda(Box::new(l)) }
+    / "!" __ expr:expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Not })) }
+    / "+" __ expr:expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Pos })) }
+    / "-" __ expr:expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
     / head:atom tail:expr_tail* {
         let mut full = head;
         for part in tail { full = part.prepend(full) }
@@ -26,25 +29,37 @@ declaration -> Declaration
 expr_tail -> ExpressionTail
     = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
+    / __ "++" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Concat, right) }
+    / __ "+" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Add, right) }
+    / __ "-" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Sub, right) }
+    / __ "*" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Mul, right) }
+    / __ "/" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Div, right) }
+    / __ "or" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Or, right) }
+    / __ "and" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::And, right) }
+    / __ "==" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Eq, right) }
+    / __ "!=" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Ne, right) }
+    / __ ">=" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Ge, right) }
+    / __ "<=" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Le, right) }
+    / __ ">" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Gt, right) }
+    / __ "<" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Lt, right) }
 
 expr_list -> Vec<Expression>
-    = expr:wrapped_atom ** "," __ ","? { expr }
-
-wrapped_atom -> Expression
-    = __ atom:atom __ { atom }
+    = expr:wrapped_expr ** "," __ ","? { expr }
 
 atom -> Expression
     = "(" __ expr:expr __ ")" { expr }
     / block:block { Expression::Block(Box::new(block)) }
-    / id:id { Expression::Id(Box::new(id)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
+    / bl:boolean_literal { Expression::BooleanLiteral(Box::new(bl)) }
+    / vl:void_literal { Expression::VoidLiteral(Box::new(vl)) }
+    / id:id { Expression::Id(Box::new(id)) }
 
 block -> Block
     = "{" __ body:block_body __ "}" { Block { body } }
 
 id -> Id
-    = #quiet<name:$([a-zA-Z_][a-zA-Z_0-9]*) { Id{ name: name.to_owned() } }>
+    = #quiet<name:$([a-zA-Z_$][a-zA-Z_0-9]*) { Id{ name: name.to_owned() } }>
     / #expected("identifier")
 
 lambda -> Lambda
@@ -78,23 +93,18 @@ slot -> Slot
 slot_type_sufix -> Id
     = ":" __ ty:id { ty }
 
-// IDEA: We have two options for number literals
-// 1. ([0-9]+ "."? [0-9]*)
-// 2. ([0-9]+ ("." [0-9]+)?)
-//
-// Option one is like JS and the following is all vaild:
-// - 12.12
-// - 12.
-// - 12..toString()
-// The second might be a bit more intuitive (?) and allows the following:
-// - 12.12
-// - 12.toString()
-//
 number_literal -> NumberLiteral
     = value:$([0-9]+ "."? [0-9]*) { NumberLiteral { value: value.parse().unwrap() } }
 
 string_literal -> StringLiteral
     = "\"" value:$([^"]*) "\"" { StringLiteral { value: value.to_owned() } }
+
+boolean_literal -> BooleanLiteral
+    = "true" (! [a-zA-Z0-9_$]) { BooleanLiteral { value: true } }
+    / "false" (! [a-zA-Z0-9_$]) { BooleanLiteral { value: false } }
+
+void_literal -> VoidLiteral
+    = "void" (! [a-zA-Z0-9_$]) { VoidLiteral { } }
 
 space = #quiet<(whitespace / eol / comment)+>
 

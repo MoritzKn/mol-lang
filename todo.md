@@ -6,22 +6,27 @@
 - [x] Call stack and scops
 - [x] Run files
 
+## Compiler
+- [ ] JS Code Gen
+- [ ] Optimizer
+
 ## Utility
 - [x] typeof function
 - [x] Fix as_string vs to_string on Value
 - [x] Super basic std lib
-- [ ] Basic operators
+- [x] Basic operators
 
 ## Grammar
 - [x] Regular "function foo() {}" style functions
+- [x] Void expressions
+- [ ] Operator precedence
 - [ ] Reserved words in declarations (void, typeof)
-- [ ] Void expressions
 
 ## Types
 - [ ] Add types to grammar
 - [ ] Type checker
-- [ ] record types: just a list of slots
-- [ ] type alias (Interface/Traits work by specifiying a type alias.)
+- [ ] Record types: just a list of slots
+- [ ] Type alias (Interface/Traits work by specifiying a type alias.)
 
 ## Data
 - [ ] Add complex data types

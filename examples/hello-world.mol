@@ -1,2 +1,2 @@
-log("Hello World!");
-log("I wish you a nice day");
+console.log("Hello World!");
+console.log("I wish you a nice day");

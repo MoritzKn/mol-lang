@@ -1,11 +1,8 @@
-log("Hello, what's your name?");
+console.log("Hello, what's your name?");
 
 let name = "John Doe";
 
 // TODO: When readline is implemted do it like so
 // let name = readline;
 
-// TODO: No concat operator yet :(
-// log("Nice to meet you, " ++ name ++ ".");
-
-log(name);
+console.log("Nice to meet you, " ++ name ++ ".");

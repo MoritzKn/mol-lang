@@ -28,6 +28,7 @@ pub enum Value {
     Void,
     Number(f64),
     String(String),
+    Boolean(bool),
     List(Vec<Value>),
     Map(HashMap<String, Value>),
     Function(Box<Closure>),
@@ -40,6 +41,7 @@ impl Value {
             Value::Void => String::from("Void"),
             Value::Number(_) => String::from("Number"),
             Value::String(_) => String::from("String"),
+            Value::Boolean(_) => String::from("Boolean"),
             Value::List(_) => String::from("List"),
             Value::Map(_) => String::from("Map"),
             Value::Function(_) => String::from("Function"),
@@ -49,7 +51,6 @@ impl Value {
 
     pub fn inspect(&self) -> String {
         match self {
-            Value::Void => format!("{}", self.get_type()),
             Value::NativeFunction(_) => format!("{}({:?})", self.get_type(), self),
             _ => format!("{}({})", self.get_type(), self.to_string()),
         }
@@ -69,6 +70,48 @@ impl Value {
             _ => self.to_string(),
         }
     }
+
+    pub fn as_number(&self) -> Result<f64, Value> {
+        match self {
+            Value::Number(n) => Ok(*n),
+            _ => Err(Value::from(format!(
+                "TypeError: {} can not be represented as number",
+                self.print()
+            ))),
+        }
+    }
+
+    pub fn as_boolean(&self) -> Result<bool, Value> {
+        match self {
+            Value::Void => Ok(false),
+            Value::Number(n) => Ok(*n != 0.0),
+            Value::String(s) => Ok(s.len() != 0),
+            Value::Boolean(b) => Ok(*b),
+            _ => Ok(true),
+        }
+    }
+
+    pub fn equals(&self, other: &Value) -> bool {
+        match self {
+            Value::Void => match other {
+                Value::Void => true,
+                _ => false,
+            },
+            Value::Number(own) => match other {
+                Value::Number(other) => own == other,
+                _ => false,
+            },
+            Value::String(own) => match other {
+                Value::String(other) => own == other,
+                _ => false,
+            },
+            Value::Boolean(own) => match other {
+                Value::Boolean(other) => own == other,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
 }
 
 impl Display for Value {
@@ -77,6 +120,7 @@ impl Display for Value {
             Value::Void => write!(f, "void"),
             Value::Number(value) => write!(f, "{}", value),
             Value::String(value) => write!(f, "{}", value),
+            Value::Boolean(value) => write!(f, "{}", value),
             Value::List(value) => write!(
                 f,
                 "{}",
@@ -114,6 +158,12 @@ impl From<String> for Value {
 impl From<&str> for Value {
     fn from(string: &str) -> Value {
         Value::String(string.to_owned())
+    }
+}
+
+impl From<bool> for Value {
+    fn from(boolean: bool) -> Value {
+        Value::Boolean(boolean)
     }
 }
 
@@ -344,6 +394,43 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
 
     match expr {
         Call(call) => call_fn(*call, ctx),
+        Binary(binary) => {
+            use ast::BinaryOperator::*;
+
+            let left = eval_expr(binary.left, ctx)?;
+            let right = eval_expr(binary.right, ctx)?;
+
+            let value = match binary.op {
+                Add => Value::from(left.as_number()? + right.as_number()?),
+                Sub => Value::from(left.as_number()? - right.as_number()?),
+                Mul => Value::from(left.as_number()? * right.as_number()?),
+                Div => Value::from(left.as_number()? / right.as_number()?),
+                Or => Value::from(left.as_boolean()? || right.as_boolean()?),
+                And => Value::from(left.as_boolean()? && right.as_boolean()?),
+                Eq => Value::from(left.equals(&right)),
+                Ne => Value::from(!left.equals(&right)),
+                Gt => Value::from(left.as_number()? > right.as_number()?),
+                Lt => Value::from(left.as_number()? < right.as_number()?),
+                Ge => Value::from(left.as_number()? >= right.as_number()?),
+                Le => Value::from(left.as_number()? <= right.as_number()?),
+                Concat => Value::from(format!("{}{}", left, right)),
+            };
+
+            Ok(value)
+        }
+        Unary(unary) => {
+            use ast::UnaryOperator::*;
+
+            let expr = eval_expr(unary.expr, ctx)?;
+
+            let value = match unary.op {
+                Not => Value::from(!expr.as_boolean()?),
+                Neg => Value::from(-expr.as_number()?),
+                Pos => Value::from(expr.as_number()?),
+            };
+
+            Ok(value)
+        }
         MemberAccess(member_access) => {
             let object = eval_expr(member_access.object, ctx)?;
 
@@ -369,8 +456,10 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         Id(id) => ctx
             .get_var(&id)
             .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),
+        VoidLiteral(_) => Ok(Value::Void),
         NumberLiteral(number_literal) => Ok(Value::from(number_literal.value)),
         StringLiteral(string_literal) => Ok(Value::from(string_literal.value)),
+        BooleanLiteral(boolean_literal) => Ok(Value::from(boolean_literal.value)),
         Function(function) => {
             let value = Value::from(Closure {
                 name: function.id.to_owned().name,
