@@ -6,6 +6,49 @@ enum ExpressionTail {
     Binary(BinaryOperator, Expression),
 }
 
+fn arrange_binaries(
+    left: Expression,
+    left_op: BinaryOperator,
+    right_expr: Expression,
+) -> Expression {
+    match right_expr {
+        Expression::Binary(right_bin) => {
+            let mid = right_bin.left;
+            let right_op = right_bin.op;
+            let right = right_bin.right;
+
+            let binary = if left_op.precedence() >= right_op.precedence() {
+                Binary {
+                    left: Expression::Binary(Box::new(Binary {
+                        left,
+                        op: left_op,
+                        right: mid,
+                    })),
+                    op: right_op,
+                    right,
+                }
+            } else {
+                Binary {
+                    left,
+                    op: left_op,
+                    right: Expression::Binary(Box::new(Binary {
+                        left: mid,
+                        op: right_op,
+                        right,
+                    })),
+                }
+            };
+
+            Expression::Binary(Box::new(binary))
+        }
+        _ => Expression::Binary(Box::new(Binary {
+            left: left,
+            op: left_op,
+            right: right_expr,
+        })),
+    }
+}
+
 impl ExpressionTail {
     // NOTE: Usage in grammar not recognised
     #![allow(dead_code)]
@@ -21,11 +64,7 @@ impl ExpressionTail {
                 callee: expr,
                 arguments,
             })),
-            ExpressionTail::Binary(op, right) => Expression::Binary(Box::new(Binary {
-                left: expr,
-                op,
-                right,
-            })),
+            ExpressionTail::Binary(op, right) => arrange_binaries(expr, op, right),
         }
     }
 }
@@ -570,6 +609,50 @@ mod tests {
         let ast = program(vec![lt_expr(
             number_literal_expr(1.0),
             number_literal_expr(1.0),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_operator_precedence_increasing() {
+        let result = parse_string(r#"1 + 2 * 3"#).unwrap();
+        let ast = program(vec![add_expr(
+            number_literal_expr(1.0),
+            mul_expr(number_literal_expr(2.0), number_literal_expr(3.0)),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_operator_precedence_decreasing() {
+        let result = parse_string(r#"1 * 2 + 3"#).unwrap();
+        let ast = program(vec![add_expr(
+            mul_expr(number_literal_expr(1.0), number_literal_expr(2.0)),
+            number_literal_expr(3.0),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_operator_precedence_constant() {
+        let result = parse_string(r#"1 + 2 + 3"#).unwrap();
+        let ast = program(vec![add_expr(
+            add_expr(number_literal_expr(1.0), number_literal_expr(2.0)),
+            number_literal_expr(3.0),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_operator_precedence_parentheses() {
+        let result = parse_string(r#"(1 + 2) * 3"#).unwrap();
+        let ast = program(vec![mul_expr(
+            add_expr(number_literal_expr(1.0), number_literal_expr(2.0)),
+            number_literal_expr(3.0),
         )]);
 
         assert_eq!(result, ast);

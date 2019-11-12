@@ -19,7 +19,7 @@
 ## Grammar
 - [x] Regular "function foo() {}" style functions
 - [x] Void expressions
-- [ ] Operator precedence
+- [x] Operator precedence
 - [ ] Reserved words in declarations (void, typeof)
 
 ## Types
