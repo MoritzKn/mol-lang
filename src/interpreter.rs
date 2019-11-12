@@ -50,10 +50,7 @@ impl Value {
     }
 
     pub fn inspect(&self) -> String {
-        match self {
-            Value::NativeFunction(_) => format!("{}({:?})", self.get_type(), self),
-            _ => format!("{}({})", self.get_type(), self.to_string()),
-        }
+        format!("{}({})", self.get_type(), self)
     }
 
     pub fn print(&self) -> String {
@@ -132,7 +129,7 @@ impl Display for Value {
             ),
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
-            Value::NativeFunction(value) => write!(f, "[NativeFunction {:?}]", value),
+            Value::NativeFunction(value) => write!(f, "[NativeFunction: {:?}]", value),
         }
     }
 }

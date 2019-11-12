@@ -15,12 +15,11 @@ type Cli = clap::ArgMatches<'static>;
 fn init_cli() -> Cli {
     App::new("The Mol Programming Panguage")
         .version(env!("CARGO_PKG_VERSION"))
-        .author("Moritz Kneilmann. <moritz.kneilmann@gmx.de>")
+        .author("Moritz Kneilmann <moritz.kneilmann@gmx.de>")
         .about("Client, server & build chain all in one code base")
         .arg(
             Arg::with_name("files")
                 .value_name("FILE")
-                .help("foo")
                 .takes_value(true)
                 .multiple(true),
         )
