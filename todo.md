@@ -16,6 +16,10 @@
 - [x] Super basic std lib
 - [x] Basic operators
 
+## Fun
+- [x] Better formatting
+- [ ] Colors
+
 ## Grammar
 - [x] Regular "function foo() {}" style functions
 - [x] Void expressions
@@ -28,9 +32,12 @@
 - [ ] Record types: just a list of slots
 - [ ] Type alias (Interface/Traits work by specifiying a type alias.)
 
-## Data
-- [ ] Add complex data types
-- [ ] Figure out how to handle methods, maybe just bind operator? Proper prototypes? Both?
+## Complex Data Types
+- [ ] Literals for map and arrays
+- [ ] References for complex types / GC
+- [ ] Equal for complex types
+- [ ] Figure out how to handle methods, maybe just bind operator?
+- [ ] Figure out Prototypes / inheritance
 
 ## Features
 - [ ] Throw / Errors

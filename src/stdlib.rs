@@ -21,6 +21,18 @@ pub mod console {
         Ok(Value::Void)
     }
 
+    pub fn dir(args: Vec<Value>) -> Result<Value, Value> {
+        let text = args
+            .iter()
+            .map(|v| v.print())
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        println!("{}", text);
+
+        Ok(Value::Void)
+    }
+
     pub fn inspect(args: Vec<Value>) -> Result<Value, Value> {
         let text = args
             .iter()

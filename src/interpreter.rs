@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::utils::write_list;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 use std::{fmt, fmt::Display};
@@ -16,8 +17,9 @@ pub struct Closure {
 
 impl Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // TODO: Propper formating
-        write!(f, "[Function: {}]", self.name)
+        write!(f, "function {}(", self.name)?;
+        write_list(f, &self.slots, ", ")?;
+        write!(f, ") {}", self.expression)
     }
 }
 
@@ -49,10 +51,13 @@ impl Value {
         }
     }
 
+    /// Used for logging detailed information about the value for debugging
     pub fn inspect(&self) -> String {
         format!("{}({})", self.get_type(), self)
     }
 
+    /// Used for printing the value to a terminal
+    /// E.g. in a REPL
     pub fn print(&self) -> String {
         match self {
             Value::String(value) => format!("\"{}\"", value),
@@ -64,6 +69,9 @@ impl Value {
                     .collect::<Vec<String>>()
                     .join(", ")
             ),
+            Value::Function(value) => format!("[Function: {}]", value.name),
+            // TODO: Native functions should have a name too
+            Value::NativeFunction(value) => format!("[NativeFunction: {:?}]", value),
             _ => self.to_string(),
         }
     }
@@ -106,6 +114,7 @@ impl Value {
                 Value::Boolean(other) => own == other,
                 _ => false,
             },
+            // TODO: Implement equal for complex types
             _ => false,
         }
     }
@@ -129,7 +138,8 @@ impl Display for Value {
             ),
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
-            Value::NativeFunction(value) => write!(f, "[NativeFunction: {:?}]", value),
+            // TODO: Native functions should have a name too
+            Value::NativeFunction(value) => write!(f, "function {:?}() {{ [native code] }}", value),
         }
     }
 }
@@ -293,6 +303,7 @@ impl Context {
 
         namespace(&mut scope, "console", |mut ns| {
             register_in_ns::<NativeFunction>(&mut ns, "log", lib::console::log);
+            register_in_ns::<NativeFunction>(&mut ns, "dir", lib::console::dir);
             register_in_ns::<NativeFunction>(&mut ns, "inspect", lib::console::inspect);
         });
 

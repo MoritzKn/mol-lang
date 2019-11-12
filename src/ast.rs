@@ -1,3 +1,4 @@
+use crate::utils::write_list;
 use std::{fmt, fmt::Display};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -7,7 +8,7 @@ pub struct Program {
 
 impl Display for Program {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        join(f, &self.body, ";\n")
+        write_list(f, &self.body, ";\n")
     }
 }
 
@@ -55,18 +56,26 @@ pub struct Block {
 
 impl Display for Block {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "{{")?;
+        let len = self.body.len();
 
-        let mut body = String::new();
-        join(&mut body, &self.body, ";\n")?;
-        let body = body
-            .split('\n')
-            .map(|line| format!("    {}", line))
-            .collect::<Vec<String>>()
-            .join("\n");
-        write!(f, "{}", body)?;
+        if len == 0 {
+            writeln!(f, "{{}}")
+        } else if len == 1 {
+            writeln!(f, "{{ {} }}", self.body.get(0).unwrap())
+        } else {
+            writeln!(f, "{{")?;
 
-        write!(f, "\n}}")
+            let mut body = String::new();
+            write_list(&mut body, &self.body, ";\n")?;
+            let body = body
+                .split('\n')
+                .map(|line| format!("    {}", line))
+                .collect::<Vec<String>>()
+                .join("\n");
+            write!(f, "{}", body)?;
+
+            write!(f, "\n}}")
+        }
     }
 }
 
@@ -79,7 +88,7 @@ pub struct Call {
 impl Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}(", self.callee)?;
-        join(f, &self.arguments, " ,")?;
+        write_list(f, &self.arguments, " ,")?;
         write!(f, ")")
     }
 }
@@ -233,8 +242,8 @@ pub struct Function {
 
 impl Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "function {} (", self.id.name)?;
-        join(f, &self.slots, " ,")?;
+        write!(f, "function {}(", self.id.name)?;
+        write_list(f, &self.slots, ", ")?;
         write!(f, ") {}", self.expression)
     }
 }
@@ -248,7 +257,7 @@ pub struct Lambda {
 impl Display for Lambda {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "(")?;
-        join(f, &self.slots, " ,")?;
+        write_list(f, &self.slots, " ,")?;
         write!(f, ") => {}", self.expression)
     }
 }
@@ -293,18 +302,6 @@ impl Display for VoidLiteral {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "void")
     }
-}
-
-fn join<W: fmt::Write, T: Display>(f: &mut W, list: &[T], seperator: &str) -> fmt::Result {
-    let mut first = true;
-    for item in list {
-        if !first {
-            write!(f, "{}", seperator)?;
-        };
-        write!(f, "{}", item)?;
-        first = false;
-    }
-    Ok(())
 }
 
 #[allow(dead_code)]
