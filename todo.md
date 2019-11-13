@@ -18,7 +18,7 @@
 
 ## Fun
 - [x] Better formatting
-- [ ] Colors
+- [x] REPL Colors
 
 ## Grammar
 - [x] Regular "function foo() {}" style functions

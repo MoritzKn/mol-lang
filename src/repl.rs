@@ -14,7 +14,19 @@ pub fn start() {
                 match parser::parse_string(&line) {
                     Ok(program) => match interpreter::exec_with_context(program, &mut context) {
                         Ok(interpreter::Value::Void) => (),
-                        Ok(value) => println!("{}", value.print()),
+                        Ok(value) => {
+                            use interpreter::Value::*;
+                            use colored::*;
+
+                            let text = value.print();
+                            let text = match value {
+                                Number(_) | Boolean(_) => text.yellow(),
+                                String(_) => text.green(),
+                                Function(_) | NativeFunction(_) => text.blue(),
+                                _ => text.normal(),
+                            };
+                            println!("{}", text)
+                        }
                         Err(throw) => println!("Uncaught {}", throw),
                     },
                     Err(error) => {
