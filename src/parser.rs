@@ -435,6 +435,14 @@ mod tests {
     }
 
     #[test]
+    fn test_not_precedence() {
+        let result = parse_string(r#"!foo and bar"#).unwrap();
+        let ast = program(vec![mul_expr(not_expr(id_expr("foo")), id_expr("bar"))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
     fn test_positive() {
         let result = parse_string(r#"+false"#).unwrap();
         let ast = program(vec![pos_expr(boolean_literal_expr(false))]);
@@ -446,6 +454,17 @@ mod tests {
     fn test_negative() {
         let result = parse_string(r#"-false"#).unwrap();
         let ast = program(vec![neg_expr(boolean_literal_expr(false))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_negative_precedence() {
+        let result = parse_string(r#"-1 * 2"#).unwrap();
+        let ast = program(vec![mul_expr(
+            neg_expr(number_literal_expr(1.1)),
+            number_literal_expr(2.0),
+        )]);
 
         assert_eq!(result, ast);
     }
@@ -670,6 +689,41 @@ mod tests {
     fn test_line_comment() {
         let result = parse_string("// test \n 42").unwrap();
         let ast = program(vec![number_literal_expr(42.0)]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn conditional_and_or() {
+        let result =
+            parse_string("num <= 1 and 1 or fibonacci(num - 1) + fibonacci(num - 2)").unwrap();
+        let ast = program(vec![or_expr(
+            and_expr(
+                ge_expr(id_expr("num"), number_literal_expr(1.1)),
+                number_literal_expr(1.0),
+            ),
+            add_expr(
+                call_expr(
+                    id_expr("fibonacci"),
+                    vec![sub_expr(id_expr("num"), number_literal_expr(1.0))],
+                ),
+                call_expr(
+                    id_expr("fibonacci"),
+                    vec![sub_expr(id_expr("num"), number_literal_expr(2.0))],
+                ),
+            ),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn conditional_and_or_simple() {
+        let result = parse_string("a and b or c").unwrap();
+        let ast = program(vec![or_expr(
+            and_expr(id_expr("a"), id_expr("b")),
+            id_expr("c"),
+        )]);
 
         assert_eq!(result, ast);
     }
