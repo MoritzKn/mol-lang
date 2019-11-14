@@ -406,22 +406,29 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
             use ast::BinaryOperator::*;
 
             let left = eval_expr(binary.left, ctx)?;
-            let right = eval_expr(binary.right, ctx)?;
 
             let value = match binary.op {
-                Add => Value::from(left.as_number()? + right.as_number()?),
-                Sub => Value::from(left.as_number()? - right.as_number()?),
-                Mul => Value::from(left.as_number()? * right.as_number()?),
-                Div => Value::from(left.as_number()? / right.as_number()?),
-                Or => Value::from(left.as_boolean()? || right.as_boolean()?),
-                And => Value::from(left.as_boolean()? && right.as_boolean()?),
-                Eq => Value::from(left.equals(&right)),
-                Ne => Value::from(!left.equals(&right)),
-                Gt => Value::from(left.as_number()? > right.as_number()?),
-                Lt => Value::from(left.as_number()? < right.as_number()?),
-                Ge => Value::from(left.as_number()? >= right.as_number()?),
-                Le => Value::from(left.as_number()? <= right.as_number()?),
-                Concat => Value::from(format!("{}{}", left, right)),
+                Add => Value::from(left.as_number()? + eval_expr(binary.right, ctx)?.as_number()?),
+                Sub => Value::from(left.as_number()? - eval_expr(binary.right, ctx)?.as_number()?),
+                Mul => Value::from(left.as_number()? * eval_expr(binary.right, ctx)?.as_number()?),
+                Div => Value::from(left.as_number()? / eval_expr(binary.right, ctx)?.as_number()?),
+                Or => Value::from(if left.as_boolean()? {
+                    left
+                } else {
+                    eval_expr(binary.right, ctx)?
+                }),
+                And => Value::from(if left.as_boolean()? {
+                    eval_expr(binary.right, ctx)?
+                } else {
+                    left
+                }),
+                Eq => Value::from(left.equals(&eval_expr(binary.right, ctx)?)),
+                Ne => Value::from(!left.equals(&eval_expr(binary.right, ctx)?)),
+                Gt => Value::from(left.as_number()? > eval_expr(binary.right, ctx)?.as_number()?),
+                Lt => Value::from(left.as_number()? < eval_expr(binary.right, ctx)?.as_number()?),
+                Ge => Value::from(left.as_number()? >= eval_expr(binary.right, ctx)?.as_number()?),
+                Le => Value::from(left.as_number()? <= eval_expr(binary.right, ctx)?.as_number()?),
+                Concat => Value::from(format!("{}{}", left, eval_expr(binary.right, ctx)?)),
             };
 
             Ok(value)

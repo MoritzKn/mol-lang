@@ -115,11 +115,12 @@ impl BinaryOperator {
         use BinaryOperator::*;
         match self {
             Concat => 1,
-            Or | And => 2,
-            Eq | Ne => 3,
-            Gt | Lt | Ge | Le => 4,
-            Add | Sub => 5,
-            Mul | Div => 6,
+            Or => 2,
+            And => 3,
+            Eq | Ne => 4,
+            Gt | Lt | Ge | Le => 5,
+            Add | Sub => 6,
+            Mul | Div => 7,
         }
     }
 }
@@ -147,8 +148,8 @@ impl Display for BinaryOperator {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Binary {
     pub left: Expression,
-    pub right: Expression,
     pub op: BinaryOperator,
+    pub right: Expression,
 }
 
 impl Display for Binary {
