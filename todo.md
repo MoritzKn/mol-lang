@@ -8,7 +8,15 @@
 
 ## Compiler
 - [ ] JS Code Gen
-- [ ] Optimizer
+
+## Optimizer
+- [ ] CFG
+- [ ] Dead code removal
+- [ ] Static eval
+- [ ] Inlining
+
+## Two Step Exec
+- [ ] Add meta functionss
 
 ## Utility
 - [x] typeof function
@@ -24,6 +32,7 @@
 - [x] Regular "function foo() {}" style functions
 - [x] Void expressions
 - [x] Operator precedence
+- [ ] Fix operator precedence in more complicated cases
 - [ ] Reserved words in declarations (void, typeof)
 
 ## Types
@@ -42,4 +51,3 @@
 ## Features
 - [ ] Throw / Errors
 - [ ] Pipe operator
-- [ ] Meta Programming

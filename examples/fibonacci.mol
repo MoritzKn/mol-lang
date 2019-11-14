@@ -1,0 +1,5 @@
+function fibonacci(num) {
+  ((num <= 1) and 1) or (fibonacci(num - 1) + fibonacci(num - 2))
+};
+
+console.log(fibonacci(20));
