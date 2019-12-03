@@ -5,6 +5,7 @@
 - [x] Add void value
 - [x] Call stack and scops
 - [x] Run files
+- [ ] Ifs
 
 ## Compiler
 - [ ] JS Code Gen
@@ -32,7 +33,7 @@
 - [x] Regular "function foo() {}" style functions
 - [x] Void expressions
 - [x] Operator precedence
-- [ ] Fix operator precedence in more complicated cases
+- [x] Fix operator precedence in more complicated cases
 - [ ] Reserved words in declarations (void, typeof)
 
 ## Types
