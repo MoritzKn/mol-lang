@@ -90,7 +90,7 @@ impl Value {
         match self {
             Value::Void => Ok(false),
             Value::Number(n) => Ok(*n != 0.0),
-            Value::String(s) => Ok(s.len() != 0),
+            Value::String(s) => Ok(!s.is_empty()),
             Value::Boolean(b) => Ok(*b),
             _ => Ok(true),
         }
@@ -412,16 +412,20 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
                 Sub => Value::from(left.as_number()? - eval_expr(binary.right, ctx)?.as_number()?),
                 Mul => Value::from(left.as_number()? * eval_expr(binary.right, ctx)?.as_number()?),
                 Div => Value::from(left.as_number()? / eval_expr(binary.right, ctx)?.as_number()?),
-                Or => Value::from(if left.as_boolean()? {
-                    left
-                } else {
-                    eval_expr(binary.right, ctx)?
-                }),
-                And => Value::from(if left.as_boolean()? {
-                    eval_expr(binary.right, ctx)?
-                } else {
-                    left
-                }),
+                Or => {
+                    if left.as_boolean()? {
+                        left
+                    } else {
+                        eval_expr(binary.right, ctx)?
+                    }
+                }
+                And => {
+                    if left.as_boolean()? {
+                        eval_expr(binary.right, ctx)?
+                    } else {
+                        left
+                    }
+                }
                 Eq => Value::from(left.equals(&eval_expr(binary.right, ctx)?)),
                 Ne => Value::from(!left.equals(&eval_expr(binary.right, ctx)?)),
                 Gt => Value::from(left.as_number()? > eval_expr(binary.right, ctx)?.as_number()?),

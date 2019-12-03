@@ -19,7 +19,7 @@ impl ExpressionTail {
             ExpressionTail::Call(arguments) => Expression::Call(Box::new(Call {
                 callee: expr,
                 arguments,
-            }))
+            })),
         }
     }
 }

@@ -15,8 +15,8 @@ pub fn start() {
                     Ok(program) => match interpreter::exec_with_context(program, &mut context) {
                         Ok(interpreter::Value::Void) => (),
                         Ok(value) => {
-                            use interpreter::Value::*;
                             use colored::*;
+                            use interpreter::Value::*;
 
                             let text = value.print();
                             let text = match value {
