@@ -110,21 +110,6 @@ pub enum BinaryOperator {
     Concat,
 }
 
-impl BinaryOperator {
-    pub fn precedence(&self) -> u8 {
-        use BinaryOperator::*;
-        match self {
-            Concat => 1,
-            Or => 2,
-            And => 3,
-            Eq | Ne => 4,
-            Gt | Lt | Ge | Le => 5,
-            Add | Sub => 6,
-            Mul | Div => 7,
-        }
-    }
-}
-
 impl Display for BinaryOperator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

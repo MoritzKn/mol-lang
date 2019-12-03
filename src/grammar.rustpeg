@@ -5,48 +5,54 @@ pub program -> Program
     = body:block_body { Program { body } }
 
 block_body -> Vec<Expression>
-    = body:wrapped_expr ** ";" __ ";"? __ { body }
+    = body:expr_wrapped ** ";" __ ";"? __ { body }
 
-wrapped_expr -> Expression
+expr_wrapped -> Expression
     = __ expr:expr __ { expr }
 
 expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
     / f:function { Expression::Function(Box::new(f)) }
     / l:lambda { Expression::Lambda(Box::new(l)) }
-    / "!" __ expr:expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Not })) }
-    / "+" __ expr:expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Pos })) }
-    / "-" __ expr:expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
-    / head:atom tail:expr_tail* {
+    / bin_expr
+
+bin_expr -> Expression = #infix<suffix_expr_wrapped> {
+    #L left "or" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Or, right })) }
+    #L left "and" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::And, right })) }
+    #L left "==" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Eq, right })) }
+       left "!=" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Ne, right })) }
+    #L left ">=" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Ge, right })) }
+       left "<=" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Le, right })) }
+       left ">" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Gt, right })) }
+       left "<" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Lt, right })) }
+    #R left "++" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Concat, right })) }
+    #L left "+" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Add, right })) }
+       left "-" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Sub, right })) }
+    #L left "*" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Mul, right })) }
+       left "/" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Div, right })) }
+}
+
+suffix_expr_wrapped -> Expression
+    = __ e:suffix_expr __ { e }
+
+suffix_expr -> Expression
+    = head:prefix_expr tail:expr_tail* {
         let mut full = head;
         for part in tail { full = part.prepend(full) }
         full
     }
 
-declaration -> Declaration
-    = "let" space id:id __ "=" __ value:expr { Declaration{ id, value } }
-
 expr_tail -> ExpressionTail
     = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
-    / __ "++" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Concat, right) }
-    / __ "+" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Add, right) }
-    / __ "-" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Sub, right) }
-    / __ "*" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Mul, right) }
-    / __ "/" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Div, right) }
-    / __ "or" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Or, right) }
-    / __ "and" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::And, right) }
-    / __ "==" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Eq, right) }
-    / __ "!=" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Ne, right) }
-    / __ ">=" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Ge, right) }
-    / __ "<=" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Le, right) }
-    / __ ">" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Gt, right) }
-    / __ "<" __ right:expr __ { ExpressionTail::Binary(BinaryOperator::Lt, right) }
 
-expr_list -> Vec<Expression>
-    = expr:wrapped_expr ** "," __ ","? { expr }
+prefix_expr -> Expression
+    = "!" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Not })) }
+    / "+" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Pos })) }
+    / "-" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
+    / atom_expr
 
-atom -> Expression
+atom_expr -> Expression
     = "(" __ expr:expr __ ")" { expr }
     / block:block { Expression::Block(Box::new(block)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
@@ -54,6 +60,12 @@ atom -> Expression
     / bl:boolean_literal { Expression::BooleanLiteral(Box::new(bl)) }
     / vl:void_literal { Expression::VoidLiteral(Box::new(vl)) }
     / id:id { Expression::Id(Box::new(id)) }
+
+expr_list -> Vec<Expression>
+    = expr:expr_wrapped ** "," __ ","? { expr }
+
+declaration -> Declaration
+    = "let" space id:id __ "=" __ value:expr { Declaration{ id, value } }
 
 block -> Block
     = "{" __ body:block_body __ "}" { Block { body } }

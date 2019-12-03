@@ -1,52 +1,8 @@
-use crate::ast::{Binary, BinaryOperator, Call, Expression, Id, MemberAccess, Program};
+use crate::ast::{Call, Expression, Id, MemberAccess, Program};
 
 enum ExpressionTail {
     MemberAccess(Id),
     Call(Vec<Expression>),
-    Binary(BinaryOperator, Expression),
-}
-
-fn arrange_binaries(
-    left: Expression,
-    left_op: BinaryOperator,
-    right_expr: Expression,
-) -> Expression {
-    match right_expr {
-        Expression::Binary(right_bin) => {
-            let mid = right_bin.left;
-            let right_op = right_bin.op;
-            let right = right_bin.right;
-
-            let binary = if left_op.precedence() >= right_op.precedence() {
-                Binary {
-                    left: Expression::Binary(Box::new(Binary {
-                        left,
-                        op: left_op,
-                        right: mid,
-                    })),
-                    op: right_op,
-                    right,
-                }
-            } else {
-                Binary {
-                    left,
-                    op: left_op,
-                    right: Expression::Binary(Box::new(Binary {
-                        left: mid,
-                        op: right_op,
-                        right,
-                    })),
-                }
-            };
-
-            Expression::Binary(Box::new(binary))
-        }
-        _ => Expression::Binary(Box::new(Binary {
-            left: left,
-            op: left_op,
-            right: right_expr,
-        })),
-    }
 }
 
 impl ExpressionTail {
@@ -63,8 +19,7 @@ impl ExpressionTail {
             ExpressionTail::Call(arguments) => Expression::Call(Box::new(Call {
                 callee: expr,
                 arguments,
-            })),
-            ExpressionTail::Binary(op, right) => arrange_binaries(expr, op, right),
+            }))
         }
     }
 }
@@ -84,6 +39,7 @@ pub fn parse_string(string: &str) -> Result<Program, ParseError> {
 mod tests {
     use super::parse_string;
     use crate::ast::build::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn text_id() {
@@ -158,8 +114,15 @@ mod tests {
     }
 
     #[test]
-    fn test_function_member_access() {
+    fn test_function_expr_member_access() {
         let result = parse_string(r#"function foo () {}.foo"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_function_expr_call() {
+        let result = parse_string(r#"function foo () {}()"#);
 
         assert!(result.is_err());
     }
@@ -329,6 +292,17 @@ mod tests {
     }
 
     #[test]
+    fn test_number_literal_negative_member_access() {
+        let result = parse_string(r#"-42..bar"#).unwrap();
+        let ast = program(vec![member_access_expr(
+            neg_expr(number_literal_expr(42.0)),
+            id("bar"),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
     fn test_number_literal_decimal() {
         let result = parse_string(r#"42.24"#).unwrap();
         let ast = program(vec![number_literal_expr(42.24)]);
@@ -437,7 +411,7 @@ mod tests {
     #[test]
     fn test_not_precedence() {
         let result = parse_string(r#"!foo and bar"#).unwrap();
-        let ast = program(vec![mul_expr(not_expr(id_expr("foo")), id_expr("bar"))]);
+        let ast = program(vec![and_expr(not_expr(id_expr("foo")), id_expr("bar"))]);
 
         assert_eq!(result, ast);
     }
@@ -462,7 +436,7 @@ mod tests {
     fn test_negative_precedence() {
         let result = parse_string(r#"-1 * 2"#).unwrap();
         let ast = program(vec![mul_expr(
-            neg_expr(number_literal_expr(1.1)),
+            neg_expr(number_literal_expr(1.0)),
             number_literal_expr(2.0),
         )]);
 
@@ -694,12 +668,12 @@ mod tests {
     }
 
     #[test]
-    fn conditional_and_or() {
+    fn test_conditional_and_or() {
         let result =
             parse_string("num <= 1 and 1 or fibonacci(num - 1) + fibonacci(num - 2)").unwrap();
         let ast = program(vec![or_expr(
             and_expr(
-                ge_expr(id_expr("num"), number_literal_expr(1.1)),
+                le_expr(id_expr("num"), number_literal_expr(1.0)),
                 number_literal_expr(1.0),
             ),
             add_expr(
@@ -718,7 +692,7 @@ mod tests {
     }
 
     #[test]
-    fn conditional_and_or_simple() {
+    fn test_conditional_and_or_simple() {
         let result = parse_string("a and b or c").unwrap();
         let ast = program(vec![or_expr(
             and_expr(id_expr("a"), id_expr("b")),
