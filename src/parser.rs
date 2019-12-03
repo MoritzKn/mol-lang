@@ -322,21 +322,44 @@ mod tests {
     }
 
     #[test]
-    fn test_string_literal() {
-        let result = parse_string(r#" "foo" "#).unwrap();
-        let ast = program(vec![string_literal_expr("foo")]);
+    fn test_string_literal_double_quote() {
+        let result = parse_string(r#" "foo 'bar' " "#).unwrap();
+        let ast = program(vec![string_literal_expr("foo 'bar' ")]);
 
         assert_eq!(result, ast);
     }
 
-    // TODO: Fix this
-    // #[test]
-    // fn test_string_literal_escape() {
-    //     let result = parse_string(r#" "foo: \\" "#).unwrap();
-    //     let ast = program(vec![string_literal_expr("foo: \\")]);
-    //
-    //     assert_eq!(result, ast);
-    // }
+    #[test]
+    fn test_string_literal_single_quote() {
+        let result = parse_string(r#" 'foo "bar" ' "#).unwrap();
+        let ast = program(vec![string_literal_expr("foo \"bar\" ")]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_string_literal_escape_quote() {
+        let result = parse_string(r#" "foo: \\" "#).unwrap();
+        let ast = program(vec![string_literal_expr("foo: \\")]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_string_literal_escape_backspace() {
+        let result = parse_string(r#" "foo\\bar" "#).unwrap();
+        let ast = program(vec![string_literal_expr("foo\\bar")]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_string_literal_escape_nl() {
+        let result = parse_string(r#" "foo\nbar" "#).unwrap();
+        let ast = program(vec![string_literal_expr("foo\nbar")]);
+
+        assert_eq!(result, ast);
+    }
 
     #[test]
     fn test_string_literal_member_access() {

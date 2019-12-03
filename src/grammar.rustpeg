@@ -109,7 +109,29 @@ number_literal -> NumberLiteral
     = value:$([0-9]+ "."? [0-9]*) { NumberLiteral { value: value.parse().unwrap() } }
 
 string_literal -> StringLiteral
-    = "\"" value:$([^"]*) "\"" { StringLiteral { value: value.to_owned() } }
+    = "\"" value:string_content_double "\"" { StringLiteral { value } }
+    / "'" value:string_content_single "'" { StringLiteral { value } }
+
+string_content_double -> String
+    = chars:string_char_double* { chars.into_iter().collect() }
+
+string_char_double -> char
+    = c:$([^\\"]) { c.chars().next().unwrap() }
+    / escape
+
+string_content_single -> String
+    = chars:string_char_single* { chars.into_iter().collect() }
+
+string_char_single -> char
+    = c:$([^\\']) { c.chars().next().unwrap() }
+    / escape
+
+escape -> char
+    = "\\" c:$(.) { match c {
+        // TODO: Add other escape sequences
+       "n" => '\n',
+       _ => c.chars().next().unwrap()
+    } }
 
 boolean_literal -> BooleanLiteral
     = "true" (! [a-zA-Z0-9_$]) { BooleanLiteral { value: true } }
