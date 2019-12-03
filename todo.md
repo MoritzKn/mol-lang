@@ -7,6 +7,14 @@
 - [x] Run files
 - [ ] Ifs
 
+## Docs
+- [ ] README
+- [ ] Document Grammar
+- [ ] More examples
+- [ ] Goals
+- [ ] Into
+- [ ] Getting started
+
 ## Compiler
 - [ ] JS Code Gen
 
