@@ -5,7 +5,7 @@
 - [x] Add void value
 - [x] Call stack and scops
 - [x] Run files
-- [ ] Ifs
+- [x] Ifs
 
 ## Docs
 - [ ] README

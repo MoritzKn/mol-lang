@@ -16,6 +16,7 @@ impl Display for Program {
 pub enum Expression {
     Binary(Box<Binary>),
     Block(Box<Block>),
+    IfElse(Box<IfElse>),
     BooleanLiteral(Box<BooleanLiteral>),
     Call(Box<Call>),
     Declaration(Box<Declaration>),
@@ -34,6 +35,7 @@ impl Display for Expression {
         match self {
             Expression::Binary(ast) => write!(f, "{}", ast),
             Expression::Block(ast) => write!(f, "{}", ast),
+            Expression::IfElse(ast) => write!(f, "{}", ast),
             Expression::BooleanLiteral(ast) => write!(f, "{}", ast),
             Expression::Call(ast) => write!(f, "{}", ast),
             Expression::Declaration(ast) => write!(f, "{}", ast),
@@ -75,6 +77,23 @@ impl Display for Block {
             write!(f, "{}", body)?;
 
             write!(f, "\n}}")
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IfElse {
+    pub condition: Expression,
+    pub then: Expression,
+    pub r#else: Option<Expression>,
+}
+
+impl Display for IfElse {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(r#else) = &self.r#else {
+            write!(f, "if ({}) {} else {}", self.condition, self.then, r#else)
+        } else {
+            write!(f, "if ({}) {}", self.condition, self.then)
         }
     }
 }
@@ -298,8 +317,12 @@ pub mod build {
         Program { body }
     }
 
+    // --- Expression Variants --- //
     pub fn expr_block(block: Block) -> Expression {
         Expression::Block(Box::new(block))
+    }
+    pub fn expr_if_else(ast: IfElse) -> Expression {
+        Expression::IfElse(Box::new(ast))
     }
     pub fn expr_call(call: Call) -> Expression {
         Expression::Call(Box::new(call))
@@ -338,6 +361,7 @@ pub mod build {
         Expression::Unary(Box::new(uary))
     }
 
+    // --- BinaryOperator Variants --- //
     pub fn binop_add() -> BinaryOperator {
         BinaryOperator::Add
     }
@@ -378,6 +402,7 @@ pub mod build {
         BinaryOperator::Concat
     }
 
+    // --- BinaryOperator Expressions --- //
     pub fn add_expr(left: Expression, right: Expression) -> Expression {
         binary_expr(left, binop_add(), right)
     }
@@ -418,6 +443,7 @@ pub mod build {
         binary_expr(left, binop_concat(), right)
     }
 
+    // --- UnaryOperator Variants --- //
     pub fn unop_not() -> UnaryOperator {
         UnaryOperator::Not
     }
@@ -428,6 +454,7 @@ pub mod build {
         UnaryOperator::Pos
     }
 
+    // --- UnaryOperator Expressions --- //
     pub fn not_expr(expr: Expression) -> Expression {
         unary_expr(expr, unop_not())
     }
@@ -438,12 +465,29 @@ pub mod build {
         unary_expr(expr, unop_pos())
     }
 
+    // --- Other Expressions --- //
     pub fn block(body: Vec<Expression>) -> Block {
         Block { body }
     }
 
     pub fn block_expr(body: Vec<Expression>) -> Expression {
         Expression::Block(Box::new(block(body)))
+    }
+
+    pub fn if_expr(condition: Expression, then: Expression) -> Expression {
+        Expression::IfElse(Box::new(if_else(condition, then, None)))
+    }
+
+    pub fn if_else(condition: Expression, then: Expression, r#else: Option<Expression>) -> IfElse {
+        IfElse {
+            condition,
+            then,
+            r#else,
+        }
+    }
+
+    pub fn if_else_expr(condition: Expression, then: Expression, r#else: Expression) -> Expression {
+        Expression::IfElse(Box::new(if_else(condition, then, Some(r#else))))
     }
 
     pub fn call(callee: Expression, arguments: Vec<Expression>) -> Call {

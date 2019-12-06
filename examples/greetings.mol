@@ -3,6 +3,6 @@ console.log("Hello, what's your name?");
 let name = "John Doe";
 
 // TODO: When readline is implemted do it like so
-// let name = readline;
+// let name = readline();
 
 console.log("Nice to meet you, " ++ name ++ ".");

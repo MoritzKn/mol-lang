@@ -12,11 +12,11 @@ expr_wrapped -> Expression
 
 expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
-    / f:function { Expression::Function(Box::new(f)) }
+    / i:if_else { Expression::IfElse(Box::new(i)) }
     / l:lambda { Expression::Lambda(Box::new(l)) }
     / bin_expr
 
-bin_expr -> Expression = #infix<suffix_expr_wrapped> {
+bin_expr -> Expression = #infix<prefix_expr_wrapped> {
     #L left "or" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Or, right })) }
     #L left "and" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::And, right })) }
     #L left "==" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Eq, right })) }
@@ -32,11 +32,17 @@ bin_expr -> Expression = #infix<suffix_expr_wrapped> {
        left "/" right { Expression::Binary(Box::new(Binary{ left, op: BinaryOperator::Div, right })) }
 }
 
-suffix_expr_wrapped -> Expression
-    = __ e:suffix_expr __ { e }
+prefix_expr_wrapped -> Expression
+    = __ e:prefix_expr __ { e }
 
-suffix_expr -> Expression
-    = head:prefix_expr tail:expr_tail* {
+prefix_expr -> Expression
+    = "+" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Pos })) }
+    / "!" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Not })) }
+    / "-" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
+    / call_expr
+
+call_expr -> Expression
+    = head:atom_expr tail:expr_tail* {
         let mut full = head;
         for part in tail { full = part.prepend(full) }
         full
@@ -46,14 +52,9 @@ expr_tail -> ExpressionTail
     = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
 
-prefix_expr -> Expression
-    = "!" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Not })) }
-    / "+" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Pos })) }
-    / "-" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
-    / atom_expr
-
 atom_expr -> Expression
     = "(" __ expr:expr __ ")" { expr }
+    / f:function { Expression::Function(Box::new(f)) }
     / block:block { Expression::Block(Box::new(block)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
@@ -66,6 +67,14 @@ expr_list -> Vec<Expression>
 
 declaration -> Declaration
     = "let" space id:id __ "=" __ value:expr { Declaration{ id, value } }
+
+if_else -> IfElse
+    = "if" (! [a-zA-Z0-9_$]) __ "(" __ condition:expr __ ")" __ then:expr other:if_else_branch? {
+        IfElse{ condition, then, r#else: other }
+    }
+
+if_else_branch -> Expression
+    = __ "else" (! [a-zA-Z0-9_$]) __ other:expr { other }
 
 block -> Block
     = "{" __ body:block_body __ "}" { Block { body } }

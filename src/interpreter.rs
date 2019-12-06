@@ -472,6 +472,17 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
             Ok(value)
         }
         Block(block) => eval_expr_list(block.body, ctx),
+        IfElse(if_else) => {
+            if eval_expr(if_else.condition, ctx)?.as_boolean()? {
+                eval_expr(if_else.then, ctx)
+            } else {
+                // TODO: Change this to None when we get Optionals
+                if_else
+                    .r#else
+                    .map(|expr| eval_expr(expr, ctx))
+                    .unwrap_or_else(|| Ok(Value::Void))
+            }
+        }
         Id(id) => ctx
             .get_var(&id)
             .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),

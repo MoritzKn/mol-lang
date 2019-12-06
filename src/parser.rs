@@ -115,16 +115,22 @@ mod tests {
 
     #[test]
     fn test_function_expr_member_access() {
-        let result = parse_string(r#"function foo () {}.foo"#);
+        let result = parse_string(r#"function foo () {}.foo"#).unwrap();
+        let ast = program(vec![
+            member_access_expr(function_expr(id("foo"), vec![], block_expr(vec![])), id("foo"))
+        ]);
 
-        assert!(result.is_err());
+        assert_eq!(result, ast);
     }
 
     #[test]
     fn test_function_expr_call() {
-        let result = parse_string(r#"function foo () {}()"#);
+        let result = parse_string(r#"function foo () {}()"#).unwrap();
+        let ast = program(vec![
+            call_expr(function_expr(id("foo"), vec![], block_expr(vec![])), vec![])
+        ]);
 
-        assert!(result.is_err());
+        assert_eq!(result, ast);
     }
 
     #[test]
@@ -171,6 +177,17 @@ mod tests {
         let ast = program(vec![lambda_expr(
             vec![],
             member_access_expr(block_expr(vec![]), id("foo")),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_lambda_with_call() {
+        let result = parse_string(r#"() => {}()"#).unwrap();
+        let ast = program(vec![lambda_expr(
+            vec![],
+            call_expr(block_expr(vec![]), vec![]),
         )]);
 
         assert_eq!(result, ast);
@@ -273,6 +290,52 @@ mod tests {
     }
 
     #[test]
+    fn test_if_member_access() {
+        let result = parse_string(r#"if (foo) {bar}.foo"#).unwrap();
+        let ast = program(vec![if_expr(
+            id_expr("foo"),
+            member_access_expr(block_expr(vec![id_expr("bar")]), id("foo")),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_if_block() {
+        let result = parse_string(r#"if (foo) {bar}"#).unwrap();
+        let ast = program(vec![if_expr(
+            id_expr("foo"),
+            block_expr(vec![id_expr("bar")]),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_if_else() {
+        let result = parse_string(r#"if (foo) bar else baz"#).unwrap();
+        let ast = program(vec![if_else_expr(
+            id_expr("foo"),
+            id_expr("bar"),
+            id_expr("baz"),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_if_else_block() {
+        let result = parse_string(r#"if (foo) {bar} else {baz}"#).unwrap();
+        let ast = program(vec![if_else_expr(
+            id_expr("foo"),
+            block_expr(vec![id_expr("bar")]),
+            block_expr(vec![id_expr("baz")]),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
     fn test_number_literal() {
         let result = parse_string(r#"42"#).unwrap();
         let ast = program(vec![number_literal_expr(42.0)]);
@@ -294,10 +357,10 @@ mod tests {
     #[test]
     fn test_number_literal_negative_member_access() {
         let result = parse_string(r#"-42..bar"#).unwrap();
-        let ast = program(vec![member_access_expr(
-            neg_expr(number_literal_expr(42.0)),
+        let ast = program(vec![neg_expr(member_access_expr(
+            number_literal_expr(42.0),
             id("bar"),
-        )]);
+        ))]);
 
         assert_eq!(result, ast);
     }
@@ -432,6 +495,17 @@ mod tests {
     }
 
     #[test]
+    fn test_not_member_access() {
+        let result = parse_string(r#"!foo.bar"#).unwrap();
+        let ast = program(vec![not_expr(member_access_expr(
+            id_expr("foo"),
+            id("bar"),
+        ))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
     fn test_not_precedence() {
         let result = parse_string(r#"!foo and bar"#).unwrap();
         let ast = program(vec![and_expr(not_expr(id_expr("foo")), id_expr("bar"))]);
@@ -451,6 +525,17 @@ mod tests {
     fn test_negative() {
         let result = parse_string(r#"-false"#).unwrap();
         let ast = program(vec![neg_expr(boolean_literal_expr(false))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_negative_member() {
+        let result = parse_string(r#"-foo.bar"#).unwrap();
+        let ast = program(vec![neg_expr(member_access_expr(
+            id_expr("foo"),
+            id("bar"),
+        ))]);
 
         assert_eq!(result, ast);
     }
