@@ -6,10 +6,14 @@ How Mol looks so far:
 
 ```mol
 function fibonacci(num) {
-  ((num <= 1) and 1) or (fibonacci(num - 1) + fibonacci(num - 2))
+  if (num <= 1) {
+      1
+  } else {
+      fibonacci(num - 1) + fibonacci(num - 2)
+  }
 };
 
-console.log(fibonacci(20));
+console.log('fibonacci of 16:', fibonacci(16));
 ```
 
 ## Getting Stated
