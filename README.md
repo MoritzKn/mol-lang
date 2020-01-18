@@ -1,6 +1,6 @@
 # The Mol Programming Panguage
 
-Client, server & build chain all in one code base
+A unfinished, experimental programming language
 
 How Mol looks so far:
 
