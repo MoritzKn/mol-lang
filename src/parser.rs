@@ -123,9 +123,10 @@ mod tests {
     #[test]
     fn test_function_expr_member_access() {
         let result = parse_string(r#"function foo () {}.foo"#).unwrap();
-        let ast = program(vec![
-            member_access_expr(function_expr(id("foo"), vec![], block_expr(vec![])), id("foo"))
-        ]);
+        let ast = program(vec![member_access_expr(
+            function_expr(id("foo"), vec![], block_expr(vec![])),
+            id("foo"),
+        )]);
 
         assert_eq!(result, ast);
     }
@@ -133,9 +134,10 @@ mod tests {
     #[test]
     fn test_function_expr_call() {
         let result = parse_string(r#"function foo () {}()"#).unwrap();
-        let ast = program(vec![
-            call_expr(function_expr(id("foo"), vec![], block_expr(vec![])), vec![])
-        ]);
+        let ast = program(vec![call_expr(
+            function_expr(id("foo"), vec![], block_expr(vec![])),
+            vec![],
+        )]);
 
         assert_eq!(result, ast);
     }

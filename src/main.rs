@@ -3,6 +3,7 @@ extern crate colored;
 extern crate rustyline;
 
 mod ast;
+mod codegen;
 mod interpreter;
 mod parser;
 mod repl;
@@ -20,15 +21,28 @@ fn init_cli() -> Cli {
         .author("Moritz Kneilmann <moritz.kneilmann@gmx.de>")
         .about("Client, server & build chain all in one code base")
         .arg(
+            Arg::with_name("generate")
+                .long("generate")
+                .help("Generate JavaScript"),
+        )
+        .arg(
+            Arg::with_name("result")
+                .long("result")
+                .help("Print result of execution"),
+        )
+        .arg(
             Arg::with_name("files")
                 .value_name("FILE")
                 .takes_value(true)
-                .multiple(true),
+                .multiple(true)
+                .help("Specifies source files"),
         )
         .get_matches()
 }
 
-fn exec_file(file: &str, cli: &Cli) {
+fn process_file(file: &str, cli: &Cli) {
+    let gen = cli.is_present("generate");
+
     match fs::read_to_string(file) {
         Err(error) => {
             println!("{}: '{}'", error, file);
@@ -41,18 +55,25 @@ fn exec_file(file: &str, cli: &Cli) {
                 std::process::exit(1);
             }
 
-            Ok(program) => match interpreter::exec(program) {
-                Err(error) => {
-                    println!("Uncaught {}", error);
-                    std::process::exit(1);
-                }
+            Ok(program) => {
+                if gen {
+                    let output = codegen::generate_js(&program);
+                    println!("{}", output);
+                } else {
+                    match interpreter::exec(program) {
+                        Err(error) => {
+                            println!("Uncaught {}", error);
+                            std::process::exit(1);
+                        }
 
-                Ok(result) => {
-                    if cli.args.contains_key("result") {
-                        println!("{}", result)
+                        Ok(result) => {
+                            if cli.is_present("result") {
+                                println!("{}", result)
+                            }
+                        }
                     }
                 }
-            },
+            }
         },
     }
 }
@@ -62,7 +83,7 @@ fn main() {
 
     if let Some(files) = cli.values_of("files") {
         for file in files {
-            exec_file(file, &cli);
+            process_file(file, &cli);
         }
     } else {
         repl::start();
