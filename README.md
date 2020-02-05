@@ -1,4 +1,4 @@
-# The Mol Programming Panguage
+# The Mol Programming Language
 
 An unfinished, experimental programming language
 
@@ -16,7 +16,7 @@ function fibonacci(num) {
 console.log('fibonacci of 16:', fibonacci(16));
 ```
 
-## Getting Stated
+## Getting Started
 
 Make sure you have [Rust installed](https://www.rust-lang.org/tools/install), then run:
 
