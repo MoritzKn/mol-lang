@@ -1,6 +1,6 @@
 # The Mol Programming Panguage
 
-A unfinished, experimental programming language
+An unfinished, experimental programming language
 
 How Mol looks so far:
 
