@@ -1,6 +1,6 @@
 # The Mol Programming Language
 
-An unfinished, experimental programming language
+An unfinished, ~~experimental~~ toy programming language
 
 How Mol looks so far:
 
