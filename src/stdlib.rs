@@ -22,13 +22,9 @@ pub mod console {
     }
 
     pub fn dir(args: Vec<Value>) -> Result<Value, Value> {
-        let text = args
-            .iter()
-            .map(|v| v.print())
-            .collect::<Vec<String>>()
-            .join("\n");
-
-        println!("{}", text);
+        for value in args {
+            println!("{}", value.print(0));
+        }
 
         Ok(Value::Void)
     }

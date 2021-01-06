@@ -53,26 +53,48 @@ impl Value {
 
     /// Used for logging detailed information about the value for debugging
     pub fn inspect(&self) -> String {
-        format!("{}({})", self.get_type(), self)
+        match self {
+            Value::Void => self.get_type(),
+            _ => format!("{}({})", self.get_type(), self),
+        }
     }
 
     /// Used for printing the value to a terminal
     /// E.g. in a REPL
-    pub fn print(&self) -> String {
+    pub fn print(&self, depth: usize) -> colored::ColoredString {
+        use colored::*;
+
         match self {
-            Value::String(value) => format!("\"{}\"", value),
+            Value::Void => format!("{}", self).dimmed(),
+            Value::Number(value) => format!("{}", value).yellow(),
+            Value::String(value) => format!("\"{}\"", value).green(),
+            Value::Boolean(value) => format!("{}", value).yellow(),
             Value::List(value) => format!(
                 "[{}]",
                 value
                     .iter()
-                    .map(|v| v.print())
+                    .map(|v| v.print(depth).to_string())
                     .collect::<Vec<String>>()
                     .join(", ")
-            ),
-            Value::Function(value) => format!("[Function: {}]", value.name),
-            // TODO: Native functions should have a name too
-            Value::NativeFunction(value) => format!("[NativeFunction: {:?}]", value),
-            _ => self.to_string(),
+            )
+            .normal(),
+            Value::Function(value) => format!("[Function: {}]", value.name).blue(),
+            Value::Map(value) => format!(
+                "{{\n{}\n{}}}",
+                value
+                    .iter()
+                    .map(|(k, v)| {
+                        let depth = depth + 1;
+
+                        format!("{}{}: {}", "  ".repeat(depth), k, v.print(depth))
+                    })
+                    .collect::<Vec<String>>()
+                    .join(",\n"),
+                "  ".repeat(depth),
+            )
+            .normal(),
+            // TODO: Native functions should have a name too...
+            Value::NativeFunction(value) => format!("[NativeFunction: {:?}]", value).blue(),
         }
     }
 
@@ -81,7 +103,7 @@ impl Value {
             Value::Number(n) => Ok(*n),
             _ => Err(Value::from(format!(
                 "TypeError: {} can not be represented as number",
-                self.print()
+                self.inspect()
             ))),
         }
     }
@@ -384,7 +406,7 @@ fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Value> {
         Value::NativeFunction(func) => func(args),
         _ => Err(Value::from(format!(
             "TypeError: {} is not a function",
-            callee.print()
+            callee.inspect()
         ))),
     }
 }
@@ -462,7 +484,7 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
                 Err(Value::from(format!(
                     "TypeError: Can not access property '{}' of {}",
                     member_access.property,
-                    object.print()
+                    object.inspect()
                 )))
             }
         }
