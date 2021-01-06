@@ -80,7 +80,7 @@ block -> Block
     = "{" __ body:block_body __ "}" { Block { body } }
 
 id -> Id
-    = #quiet<name:$([a-zA-Z_$][a-zA-Z_0-9]*) { Id{ name: name.to_owned() } }>
+    = #quiet<name:$(!keyword [a-zA-Z_$][a-zA-Z_0-9]*) { Id{ name: name.to_owned() } }>
     / #expected("identifier")
 
 lambda -> Lambda
@@ -152,6 +152,8 @@ void_literal -> VoidLiteral
 space = #quiet<(whitespace / eol / comment)+>
 
 __ = #quiet<(whitespace / eol / comment)*>
+
+keyword = ("function" / "if" / "else" / "let" / "true" / "false" / "and" / "or") (! [a-zA-Z0-9_$])
 
 whitespace
     = [ \t\u{00A0}\u{FEFF}\u{1680}\u{180E}\u{2000}-\u{200A}\u{202F}\u{205F}\u{3000}]

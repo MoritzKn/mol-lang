@@ -99,8 +99,15 @@ mod tests {
     }
 
     #[test]
+    fn test_declaration_invalid_identifier() {
+        let result = parse_string(r#"let let = bar.baz"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_declaration_no_space_after_keyword() {
-        let result = parse_string(r#"letfoo = 42"#);
+        let result = parse_string(r#"letfoo = bar.baz"#);
 
         assert!(result.is_err());
     }
@@ -134,8 +141,16 @@ mod tests {
     }
 
     #[test]
+    fn test_function_invalid_identifier() {
+        let result = parse_string(r#"function function () {}"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_function_no_space_after_keyword() {
         let result = parse_string(r#"functionfoo () {}"#);
+
         assert!(result.is_err());
     }
 
@@ -271,6 +286,13 @@ mod tests {
     }
 
     #[test]
+    fn test_function_call_invalid_identifier() {
+        let result = parse_string(r#"let()"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_block() {
         let result = parse_string(r#"{ foo; bar }"#).unwrap();
         let ast = program(vec![block_expr(vec![id_expr("foo"), id_expr("bar")])]);
@@ -333,6 +355,13 @@ mod tests {
         )]);
 
         assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_if_else_block_no_space() {
+        let result = parse_string(r#"if (foo) {bar} elsebaz"#);
+
+        assert!(result.is_err());
     }
 
     #[test]
