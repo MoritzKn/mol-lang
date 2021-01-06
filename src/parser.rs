@@ -668,6 +668,20 @@ mod tests {
     }
 
     #[test]
+    fn test_or_no_space() {
+        let result = parse_string(r#"bar orfoo"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_or_no_space_before() {
+        let result = parse_string(r#"baror foo"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_and() {
         let result = parse_string(r#"1 and 1"#).unwrap();
         let ast = program(vec![and_expr(
@@ -676,6 +690,20 @@ mod tests {
         )]);
 
         assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_and_no_space() {
+        let result = parse_string(r#"bar andfoo"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_and_no_space_before() {
+        let result = parse_string(r#"barand foo"#);
+
+        assert!(result.is_err());
     }
 
     #[test]
