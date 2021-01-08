@@ -27,6 +27,9 @@ pub fn start() {
                 multiline = None;
 
                 if line_len == 0 {
+                    if input.len() > 0 {
+                        multiline = Some(input)
+                    }
                     // No need to parse empty string and eval to void
                     continue;
                 }
@@ -38,6 +41,7 @@ pub fn start() {
                     },
                     Err(error) => {
                         // If parsing error is an unexpected end of input
+                        // TOOD: We can not assume that "line" has no newlines. Instead should check last line length explitily
                         if error.column > line_len {
                             multiline = Some(input);
                             continue;
