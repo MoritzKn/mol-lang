@@ -56,6 +56,13 @@ pub enum Value {
     NativeFunction(NativeFunction),
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        // IDEA: Should the runtime and rust impl be the same?
+        self.equals(other)
+    }
+}
+
 impl Value {
     pub fn get_type(&self) -> String {
         match self {
@@ -557,4 +564,76 @@ pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Val
 pub fn exec(program: ast::Program) -> Result<Value, Value> {
     let mut context = Context::new();
     eval_expr_list(program.body, &mut context)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{exec_with_context, Context, Value};
+    use crate::parser;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_var_def_and_access() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let foo = 1;").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(1.0));
+
+        let ast = parser::parse_string("foo;").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(1.0));
+    }
+
+    #[test]
+    fn test_function_def_and_call() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("function addOne(arg) { arg + 1 };").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("addOne(1);").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(2.0));
+    }
+
+    #[test]
+    fn test_lambda_functions() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let add = (a) => (b) => a + b").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("let add2 = add(2);").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("add2(1);").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(3.0));
+    }
+
+    #[test]
+    fn test_currying_call_style() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let add = (a) => (b) => a + b").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("add(2)(1);").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(3.0));
+    }
 }
