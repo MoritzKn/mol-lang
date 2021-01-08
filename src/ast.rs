@@ -61,9 +61,9 @@ impl Display for Block {
         let len = self.body.len();
 
         if len == 0 {
-            writeln!(f, "{{}}")
+            write!(f, "{{}}")
         } else if len == 1 {
-            writeln!(f, "{{ {} }}", self.body.get(0).unwrap())
+            write!(f, "{{ {} }}", self.body.get(0).unwrap())
         } else {
             writeln!(f, "{{")?;
 
@@ -74,9 +74,9 @@ impl Display for Block {
                 .map(|line| format!("    {}", line))
                 .collect::<Vec<String>>()
                 .join("\n");
-            write!(f, "{}", body)?;
+            writeln!(f, "{}", body)?;
 
-            write!(f, "\n}}")
+            write!(f, "}}")
         }
     }
 }

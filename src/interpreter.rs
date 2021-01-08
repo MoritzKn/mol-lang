@@ -15,11 +15,30 @@ pub struct Closure {
     expression: ast::Expression,
 }
 
+fn inspect_scope_chain(chain: &ScopeChain) -> String {
+    let mut s = String::new();
+
+    let mut i = 0;
+    for scope in chain {
+        i = i + 1;
+        let scope = scope.lock().unwrap();
+        s.push_str(&format!("=== scope layer {} ===\n{}", i, scope))
+    }
+
+    s
+}
+
 impl Display for Closure {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "function {}(", self.name)?;
-        write_list(f, &self.slots, ", ")?;
-        write!(f, ") {}", self.expression)
+        if self.name == "anonymous" {
+            write!(f, "(")?;
+            write_list(f, &self.slots, ", ")?;
+            write!(f, ") => {}", self.expression)
+        } else {
+            write!(f, "function {}(", self.name)?;
+            write_list(f, &self.slots, ", ")?;
+            write!(f, ") {}", self.expression)
+        }
     }
 }
 
