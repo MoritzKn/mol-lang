@@ -42,7 +42,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn text_id() {
+    fn test_id() {
         let result = parse_string(r#"foo"#).unwrap();
         let ast = program(vec![id_expr("foo")]);
 

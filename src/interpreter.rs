@@ -267,6 +267,16 @@ impl Scope {
     }
 }
 
+impl Display for Scope {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for (key, value) in &self.vars {
+            writeln!(f, "  {}: {}", key, value.inspect())?;
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Frame {
     scope: Arc<Mutex<Scope>>,
@@ -286,14 +296,18 @@ impl Frame {
             scope: Arc::new(Mutex::new(Scope::new())),
             scope_chain: scope_chain
                 .iter()
-                .map(|scope| Arc::downgrade(scope))
+                .map(Arc::downgrade)
                 .collect::<WeakScopeChain>(),
         }
     }
 
     fn get_var(&self, name: &str) -> Option<Value> {
-        let scope = self.scope.lock().unwrap();
-        let value = scope.get(name);
+        let value = {
+            let scope = self.scope.lock().unwrap();
+
+            scope.get(name)
+        };
+
         if value.is_some() {
             return value;
         }
@@ -302,6 +316,7 @@ impl Frame {
             let scope = scope.upgrade().expect("Scope already dropped");
             let scope = scope.lock().unwrap();
             let value = scope.get(name);
+
             if value.is_some() {
                 return value;
             }
@@ -326,44 +341,46 @@ impl Display for Frame {
 pub struct Context {
     current: Arc<Mutex<Frame>>,
     stack: Vec<Arc<Mutex<Frame>>>,
-}
-
-pub fn register<V: Into<Value>>(scope: &mut Frame, name: &str, value: V) {
-    scope.set_var(name.to_owned(), value.into());
-}
-
-pub fn register_in_ns<V: Into<Value>>(ns: &mut HashMap<String, Value>, name: &str, value: V) {
-    ns.insert(name.to_owned(), value.into());
-}
-
-pub fn namespace(scope: &mut Frame, name: &str, factory: fn(&mut HashMap<String, Value>)) {
-    let mut ns: HashMap<String, Value> = HashMap::new();
-    factory(&mut ns);
-    scope.set_var(name.to_owned(), ns.into());
+    temp_closure_scope_counter: u32,
 }
 
 impl Context {
     pub fn new() -> Self {
+        fn register<V: Into<Value>>(frame: &mut Frame, name: &str, value: V) {
+            frame.set_var(name.to_owned(), value.into());
+        }
+
+        fn register_in_ns<V: Into<Value>>(ns: &mut HashMap<String, Value>, name: &str, value: V) {
+            ns.insert(name.to_owned(), value.into());
+        }
+
+        fn namespace(frame: &mut Frame, name: &str, factory: fn(&mut HashMap<String, Value>)) {
+            let mut ns: HashMap<String, Value> = HashMap::new();
+            factory(&mut ns);
+            frame.set_var(name.to_owned(), ns.into());
+        }
+
         use crate::stdlib as lib;
-        let mut scope = Frame::new();
+        let mut frame = Frame::new();
 
-        register::<NativeFunction>(&mut scope, "typeof", lib::type_of);
+        register::<NativeFunction>(&mut frame, "typeof", lib::type_of);
 
-        namespace(&mut scope, "console", |mut ns| {
+        namespace(&mut frame, "console", |mut ns| {
             register_in_ns::<NativeFunction>(&mut ns, "log", lib::console::log);
             register_in_ns::<NativeFunction>(&mut ns, "dir", lib::console::dir);
             register_in_ns::<NativeFunction>(&mut ns, "inspect", lib::console::inspect);
         });
 
-        namespace(&mut scope, "math", |mut ns| {
+        namespace(&mut frame, "math", |mut ns| {
             register_in_ns::<NativeFunction>(&mut ns, "sum", lib::math::sum);
             register_in_ns::<NativeFunction>(&mut ns, "greatest", lib::math::greatest);
             register_in_ns::<NativeFunction>(&mut ns, "smallest", lib::math::smallest);
         });
 
         Self {
-            current: Arc::new(Mutex::new(scope)),
+            current: Arc::new(Mutex::new(frame)),
             stack: vec![],
+            temp_closure_scope_counter: 0,
         }
     }
 
@@ -396,9 +413,16 @@ impl Context {
             .iter()
             .map(|scope| scope.upgrade().expect("Scope already dropped"))
             .collect::<ScopeChain>();
+
         chain.push(current.scope.clone());
 
         chain
+    }
+
+    fn get_temp_closure_scope_id(&mut self) -> u32 {
+        self.temp_closure_scope_counter = self.temp_closure_scope_counter + 1;
+
+        self.temp_closure_scope_counter
     }
 }
 fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
@@ -414,6 +438,22 @@ fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Resul
     let result = eval_expr(closure.expression, ctx);
 
     ctx.pop_stack();
+
+    // eval_func always owns the closure, eigher it is cloned out of a scope map or the direct result of another eval.
+    // This first case is cool, but in the second case the closure would only have Weak refs.
+    // So as bad as this sounds, we need to keep the result in the scope if it is a closure...
+    if let Ok(Value::Function(_)) = result {
+        let temp_id = ctx.get_temp_closure_scope_id();
+
+        // TODO: this is sad :(
+        ctx.set_var(
+            &ast::Id {
+                // Bang to make it an illegal ID
+                name: format!("!closure_{}", temp_id),
+            },
+            result.clone().unwrap(),
+        )
+    }
 
     result
 }
@@ -499,19 +539,20 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
             Ok(value)
         }
         MemberAccess(member_access) => {
+            let prop = &member_access.property.name;
             let object = eval_expr(member_access.object, ctx)?;
 
-            if let Value::Map(map) = object {
-                Ok(map
-                    .get(&member_access.property.name)
-                    .cloned()
-                    .unwrap_or_default())
-            } else {
-                Err(Value::from(format!(
+            match object {
+                Value::Map(map) => Ok(map.get(prop).cloned().unwrap_or_default()),
+                Value::Function(closue) if prop == "scope" => {
+                    Ok(Value::from(inspect_scope_chain(&closue.scope_chain)))
+                }
+
+                _ => Err(Value::from(format!(
                     "TypeError: Can not access property '{}' of {}",
-                    member_access.property,
+                    prop,
                     object.inspect()
-                )))
+                ))),
             }
         }
         Declaration(declaration) => {
