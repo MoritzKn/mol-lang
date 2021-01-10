@@ -291,7 +291,8 @@ impl Frame {
         }
     }
 
-    fn for_closure(scope_chain: ScopeChain) -> Self {
+    // A closure holds hard refs to its scope but in a frame we need weak refs
+    fn from_closure(scope_chain: &ScopeChain) -> Self {
         Self {
             scope: Arc::new(Mutex::new(Scope::new())),
             scope_chain: scope_chain
@@ -341,7 +342,6 @@ impl Display for Frame {
 pub struct Context {
     current: Arc<Mutex<Frame>>,
     stack: Vec<Arc<Mutex<Frame>>>,
-    temp_closure_scope_counter: u32,
 }
 
 impl Context {
@@ -380,7 +380,6 @@ impl Context {
         Self {
             current: Arc::new(Mutex::new(frame)),
             stack: vec![],
-            temp_closure_scope_counter: 0,
         }
     }
 
@@ -405,6 +404,7 @@ impl Context {
         }
     }
 
+    // The frame only has weak refs to its scope chain but we export to create a closure with hard refs
     fn export_scope_chain(&self) -> ScopeChain {
         let current = self.current.lock().unwrap();
 
@@ -418,15 +418,11 @@ impl Context {
 
         chain
     }
-
-    fn get_temp_closure_scope_id(&mut self) -> u32 {
-        self.temp_closure_scope_counter = self.temp_closure_scope_counter + 1;
-
-        self.temp_closure_scope_counter
-    }
 }
+
 fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
-    let frame = Frame::for_closure(closure.scope_chain);
+    // The closure frame only has a weak ref to the scope so it is very important that the owned scope chain lives until the closure is evaluated
+    let frame = Frame::from_closure(&closure.scope_chain);
     let frame = Arc::new(Mutex::new(frame));
 
     ctx.push_stack(frame);
@@ -438,22 +434,6 @@ fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Resul
     let result = eval_expr(closure.expression, ctx);
 
     ctx.pop_stack();
-
-    // eval_func always owns the closure, eigher it is cloned out of a scope map or the direct result of another eval.
-    // This first case is cool, but in the second case the closure would only have Weak refs.
-    // So as bad as this sounds, we need to keep the result in the scope if it is a closure...
-    if let Ok(Value::Function(_)) = result {
-        let temp_id = ctx.get_temp_closure_scope_id();
-
-        // TODO: this is sad :(
-        ctx.set_var(
-            &ast::Id {
-                // Bang to make it an illegal ID
-                name: format!("!closure_{}", temp_id),
-            },
-            result.clone().unwrap(),
-        )
-    }
 
     result
 }
@@ -676,5 +656,20 @@ mod tests {
         let result = exec_with_context(ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::Number(3.0));
+    }
+
+    #[test]
+    fn test_currying_call_style_2() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let add3 = (a) => (b) => (c) => a + b + c").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("add3(2)(1)(1);").unwrap();
+        let result = exec_with_context(ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(4.0));
     }
 }
