@@ -4,28 +4,81 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
 use std::{fmt, fmt::Display};
 
-type ScopeChain = Vec<Arc<Mutex<Scope>>>;
-type WeakScopeChain = Vec<Weak<Mutex<Scope>>>;
+type ScopeRef = Arc<Mutex<Scope>>;
+type ScopeRefWeak = Weak<Mutex<Scope>>;
 
 #[derive(Debug, Clone)]
 pub struct Closure {
     name: String,
-    scope_chain: ScopeChain,
+    scope_chain: Vec<ScopeRef>,
     slots: Vec<ast::Slot>,
     expression: ast::Expression,
 }
 
-fn inspect_scope_chain(chain: &ScopeChain) -> String {
+fn inspect_scope_chain(chain: &[ScopeRef]) -> String {
     let mut s = String::new();
 
     let mut i = 0;
     for scope in chain {
-        i = i + 1;
+        i += 1;
         let scope = scope.lock().unwrap();
         s.push_str(&format!("=== scope layer {} ===\n{}", i, scope))
     }
 
     s
+}
+
+pub fn loop_while(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    let arg = args
+        .into_iter()
+        .next()
+        .ok_or_else(|| Value::from("TypeError: Expected one argument but got 0"))?;
+
+    let mut i = 0;
+    loop {
+        let should_break = eval_func(&arg, vec![Value::from(i)], ctx)?;
+
+        if should_break.as_boolean()? {
+            break;
+        }
+
+        i += 1;
+    }
+
+    Ok(Value::Void)
+}
+
+pub fn install_stdlib(frame: &mut Frame) {
+    use crate::stdlib as lib;
+
+    fn register<V: Into<Value>>(frame: &mut Frame, name: &str, value: V) {
+        frame.set_var(name.to_owned(), value.into());
+    }
+
+    fn register_in_ns<V: Into<Value>>(ns: &mut HashMap<String, Value>, name: &str, value: V) {
+        ns.insert(name.to_owned(), value.into());
+    }
+
+    fn namespace(frame: &mut Frame, name: &str, factory: fn(&mut HashMap<String, Value>)) {
+        let mut ns: HashMap<String, Value> = HashMap::new();
+        factory(&mut ns);
+        frame.set_var(name.to_owned(), ns.into());
+    }
+
+    register::<NativeFunctionDef>(frame, "typeof", ("typeof", lib::type_of));
+    register::<NativeFunctionDef>(frame, "while", ("while", loop_while));
+
+    namespace(frame, "console", |mut ns| {
+        register_in_ns::<NativeFunctionDef>(&mut ns, "log", ("log", lib::console::log));
+        register_in_ns::<NativeFunctionDef>(&mut ns, "dir", ("dir", lib::console::dir));
+        register_in_ns::<NativeFunctionDef>(&mut ns, "inspect", ("inspect", lib::console::inspect));
+    });
+
+    namespace(frame, "math", |mut ns| {
+        register_in_ns::<NativeFunctionDef>(&mut ns, "sum", ("sum", lib::math::sum));
+        register_in_ns::<NativeFunctionDef>(&mut ns, "greatest", ("greatest", lib::math::greatest));
+        register_in_ns::<NativeFunctionDef>(&mut ns, "smallest", ("smallest", lib::math::smallest));
+    });
 }
 
 impl Display for Closure {
@@ -42,7 +95,23 @@ impl Display for Closure {
     }
 }
 
-type NativeFunction = fn(Vec<Value>) -> Result<Value, Value>;
+type NativeFunctionBinding = fn(Vec<Value>, &mut Context) -> Result<Value, Value>;
+type NativeFunctionDef = (&'static str, NativeFunctionBinding);
+
+#[derive(Clone)]
+pub struct NativeFunction {
+    binding: NativeFunctionBinding,
+    name: &'static str,
+}
+
+impl fmt::Debug for NativeFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NativeFunction")
+            .field("func", &"[internal]")
+            .field("name", &self.name)
+            .finish()
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -120,7 +189,7 @@ impl Value {
             )
             .normal(),
             // TODO: Native functions should have a name too...
-            Value::NativeFunction(value) => format!("[NativeFunction: {:?}]", value).blue(),
+            Value::NativeFunction(value) => format!("[NativeFunction: {}]", value.name).blue(),
         }
     }
 
@@ -146,10 +215,7 @@ impl Value {
 
     pub fn equals(&self, other: &Value) -> bool {
         match self {
-            Value::Void => match other {
-                Value::Void => true,
-                _ => false,
-            },
+            Value::Void => matches!(self, Value::Void),
             Value::Number(own) => match other {
                 Value::Number(other) => own == other,
                 _ => false,
@@ -187,7 +253,9 @@ impl Display for Value {
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
             // TODO: Native functions should have a name too
-            Value::NativeFunction(value) => write!(f, "function {:?}() {{ [native code] }}", value),
+            Value::NativeFunction(value) => {
+                write!(f, "function {}() {{ [native code] }}", value.name)
+            }
         }
     }
 }
@@ -201,6 +269,12 @@ impl Default for Value {
 impl From<f64> for Value {
     fn from(number: f64) -> Value {
         Value::Number(number)
+    }
+}
+
+impl From<isize> for Value {
+    fn from(number: isize) -> Value {
+        Value::Number(number as f64)
     }
 }
 
@@ -241,8 +315,14 @@ impl From<Closure> for Value {
 }
 
 impl From<NativeFunction> for Value {
-    fn from(func: NativeFunction) -> Value {
-        Value::NativeFunction(func)
+    fn from(nf: NativeFunction) -> Value {
+        Value::NativeFunction(nf)
+    }
+}
+
+impl From<NativeFunctionDef> for Value {
+    fn from((name, binding): NativeFunctionDef) -> Value {
+        Value::NativeFunction(NativeFunction { name, binding })
     }
 }
 
@@ -279,8 +359,8 @@ impl Display for Scope {
 
 #[derive(Debug, Clone)]
 pub struct Frame {
-    scope: Arc<Mutex<Scope>>,
-    scope_chain: WeakScopeChain,
+    scope: ScopeRef,
+    scope_chain: Vec<ScopeRefWeak>,
 }
 
 impl Frame {
@@ -292,13 +372,13 @@ impl Frame {
     }
 
     // A closure holds hard refs to its scope but in a frame we need weak refs
-    fn from_closure(scope_chain: &ScopeChain) -> Self {
+    fn from_closure(scope_chain: &[ScopeRef]) -> Self {
         Self {
             scope: Arc::new(Mutex::new(Scope::new())),
             scope_chain: scope_chain
                 .iter()
                 .map(Arc::downgrade)
-                .collect::<WeakScopeChain>(),
+                .collect::<Vec<ScopeRefWeak>>(),
         }
     }
 
@@ -346,36 +426,9 @@ pub struct Context {
 
 impl Context {
     pub fn new() -> Self {
-        fn register<V: Into<Value>>(frame: &mut Frame, name: &str, value: V) {
-            frame.set_var(name.to_owned(), value.into());
-        }
-
-        fn register_in_ns<V: Into<Value>>(ns: &mut HashMap<String, Value>, name: &str, value: V) {
-            ns.insert(name.to_owned(), value.into());
-        }
-
-        fn namespace(frame: &mut Frame, name: &str, factory: fn(&mut HashMap<String, Value>)) {
-            let mut ns: HashMap<String, Value> = HashMap::new();
-            factory(&mut ns);
-            frame.set_var(name.to_owned(), ns.into());
-        }
-
-        use crate::stdlib as lib;
         let mut frame = Frame::new();
 
-        register::<NativeFunction>(&mut frame, "typeof", lib::type_of);
-
-        namespace(&mut frame, "console", |mut ns| {
-            register_in_ns::<NativeFunction>(&mut ns, "log", lib::console::log);
-            register_in_ns::<NativeFunction>(&mut ns, "dir", lib::console::dir);
-            register_in_ns::<NativeFunction>(&mut ns, "inspect", lib::console::inspect);
-        });
-
-        namespace(&mut frame, "math", |mut ns| {
-            register_in_ns::<NativeFunction>(&mut ns, "sum", lib::math::sum);
-            register_in_ns::<NativeFunction>(&mut ns, "greatest", lib::math::greatest);
-            register_in_ns::<NativeFunction>(&mut ns, "smallest", lib::math::smallest);
-        });
+        install_stdlib(&mut frame);
 
         Self {
             current: Arc::new(Mutex::new(frame)),
@@ -405,14 +458,14 @@ impl Context {
     }
 
     // The frame only has weak refs to its scope chain but we export to create a closure with hard refs
-    fn export_scope_chain(&self) -> ScopeChain {
+    fn export_scope_chain(&self) -> Vec<ScopeRef> {
         let current = self.current.lock().unwrap();
 
         let mut chain = current
             .scope_chain
             .iter()
             .map(|scope| scope.upgrade().expect("Scope already dropped"))
-            .collect::<ScopeChain>();
+            .collect::<Vec<ScopeRef>>();
 
         chain.push(current.scope.clone());
 
@@ -420,36 +473,28 @@ impl Context {
     }
 }
 
-fn eval_func(closure: Closure, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
-    // The closure frame only has a weak ref to the scope so it is very important that the owned scope chain lives until the closure is evaluated
-    let frame = Frame::from_closure(&closure.scope_chain);
-    let frame = Arc::new(Mutex::new(frame));
-
-    ctx.push_stack(frame);
-
-    for (i, arg) in args.drain(..).enumerate() {
-        ctx.set_var(&closure.slots[i].id, arg);
-    }
-
-    let result = eval_expr(closure.expression, ctx);
-
-    ctx.pop_stack();
-
-    result
-}
-
-fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Value> {
-    let callee = eval_expr(call.callee, ctx)?;
-
-    let mut args = vec![];
-    for expr in call.arguments {
-        let value = eval_expr(expr, ctx)?;
-        args.push(value);
-    }
-
+fn eval_func(callee: &Value, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
     match callee {
-        Value::Function(func) => eval_func(*func, args, ctx),
-        Value::NativeFunction(func) => func(args),
+        Value::Function(closure) => {
+            // The closure frame only has a weak ref to the scope so it is very important that the owned scope chain lives until the closure is evaluated
+            let frame = Frame::from_closure(&closure.scope_chain);
+            let frame = Arc::new(Mutex::new(frame));
+
+            ctx.push_stack(frame);
+
+            for (i, arg) in args.drain(..).enumerate() {
+                ctx.set_var(&closure.slots[i].id, arg);
+            }
+
+            let result = eval_expr(&closure.expression, ctx);
+
+            ctx.pop_stack();
+
+            result
+        }
+
+        Value::NativeFunction(nf) => (nf.binding)(args, ctx),
+
         _ => Err(Value::from(format!(
             "TypeError: {} is not a function",
             callee.inspect()
@@ -457,50 +502,62 @@ fn call_fn(call: ast::Call, ctx: &mut Context) -> Result<Value, Value> {
     }
 }
 
-fn eval_expr_list(expr_list: Vec<ast::Expression>, ctx: &mut Context) -> Result<Value, Value> {
+fn call_func(call: &ast::Call, ctx: &mut Context) -> Result<Value, Value> {
+    let callee = eval_expr(&call.callee, ctx)?;
+
+    let mut args = vec![];
+    for expr in &call.arguments {
+        let value = eval_expr(&expr, ctx)?;
+        args.push(value);
+    }
+
+    eval_func(&callee, args, ctx)
+}
+
+fn eval_expr_list(expr_list: &[ast::Expression], ctx: &mut Context) -> Result<Value, Value> {
     let mut final_val = Value::Void;
     for expr in expr_list {
-        final_val = eval_expr(expr, ctx)?;
+        final_val = eval_expr(&expr, ctx)?;
     }
     Ok(final_val)
 }
 
-fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
+fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
     use ast::Expression::*;
 
     match expr {
-        Call(call) => call_fn(*call, ctx),
+        Call(call) => call_func(call, ctx),
         Binary(binary) => {
             use ast::BinaryOperator::*;
 
-            let left = eval_expr(binary.left, ctx)?;
+            let left = eval_expr(&binary.left, ctx)?;
 
             let value = match binary.op {
-                Add => Value::from(left.as_number()? + eval_expr(binary.right, ctx)?.as_number()?),
-                Sub => Value::from(left.as_number()? - eval_expr(binary.right, ctx)?.as_number()?),
-                Mul => Value::from(left.as_number()? * eval_expr(binary.right, ctx)?.as_number()?),
-                Div => Value::from(left.as_number()? / eval_expr(binary.right, ctx)?.as_number()?),
+                Add => Value::from(left.as_number()? + eval_expr(&binary.right, ctx)?.as_number()?),
+                Sub => Value::from(left.as_number()? - eval_expr(&binary.right, ctx)?.as_number()?),
+                Mul => Value::from(left.as_number()? * eval_expr(&binary.right, ctx)?.as_number()?),
+                Div => Value::from(left.as_number()? / eval_expr(&binary.right, ctx)?.as_number()?),
                 Or => {
                     if left.as_boolean()? {
                         left
                     } else {
-                        eval_expr(binary.right, ctx)?
+                        eval_expr(&binary.right, ctx)?
                     }
                 }
                 And => {
                     if left.as_boolean()? {
-                        eval_expr(binary.right, ctx)?
+                        eval_expr(&binary.right, ctx)?
                     } else {
                         left
                     }
                 }
-                Eq => Value::from(left.equals(&eval_expr(binary.right, ctx)?)),
-                Ne => Value::from(!left.equals(&eval_expr(binary.right, ctx)?)),
-                Gt => Value::from(left.as_number()? > eval_expr(binary.right, ctx)?.as_number()?),
-                Lt => Value::from(left.as_number()? < eval_expr(binary.right, ctx)?.as_number()?),
-                Ge => Value::from(left.as_number()? >= eval_expr(binary.right, ctx)?.as_number()?),
-                Le => Value::from(left.as_number()? <= eval_expr(binary.right, ctx)?.as_number()?),
-                Concat => Value::from(format!("{}{}", left, eval_expr(binary.right, ctx)?)),
+                Eq => Value::from(left.equals(&eval_expr(&binary.right, ctx)?)),
+                Ne => Value::from(!left.equals(&eval_expr(&binary.right, ctx)?)),
+                Gt => Value::from(left.as_number()? > eval_expr(&binary.right, ctx)?.as_number()?),
+                Lt => Value::from(left.as_number()? < eval_expr(&binary.right, ctx)?.as_number()?),
+                Ge => Value::from(left.as_number()? >= eval_expr(&binary.right, ctx)?.as_number()?),
+                Le => Value::from(left.as_number()? <= eval_expr(&binary.right, ctx)?.as_number()?),
+                Concat => Value::from(format!("{}{}", left, eval_expr(&binary.right, ctx)?)),
             };
 
             Ok(value)
@@ -508,7 +565,7 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         Unary(unary) => {
             use ast::UnaryOperator::*;
 
-            let expr = eval_expr(unary.expr, ctx)?;
+            let expr = eval_expr(&unary.expr, ctx)?;
 
             let value = match unary.op {
                 Not => Value::from(!expr.as_boolean()?),
@@ -520,7 +577,7 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         }
         MemberAccess(member_access) => {
             let prop = &member_access.property.name;
-            let object = eval_expr(member_access.object, ctx)?;
+            let object = eval_expr(&member_access.object, ctx)?;
 
             match object {
                 Value::Map(map) => Ok(map.get(prop).cloned().unwrap_or_default()),
@@ -536,18 +593,19 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
             }
         }
         Declaration(declaration) => {
-            let value = eval_expr(declaration.value, ctx)?;
+            let value = eval_expr(&declaration.value, ctx)?;
             ctx.set_var(&declaration.id, value.clone());
             Ok(value)
         }
-        Block(block) => eval_expr_list(block.body, ctx),
+        Block(block) => eval_expr_list(&block.body, ctx),
         IfElse(if_else) => {
-            if eval_expr(if_else.condition, ctx)?.as_boolean()? {
-                eval_expr(if_else.then, ctx)
+            if eval_expr(&if_else.condition, ctx)?.as_boolean()? {
+                eval_expr(&if_else.then, ctx)
             } else {
                 // TODO: Change this to None when we get Optionals
                 if_else
                     .r#else
+                    .as_ref()
                     .map(|expr| eval_expr(expr, ctx))
                     .unwrap_or_else(|| Ok(Value::Void))
             }
@@ -556,14 +614,14 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
             .get_var(&id)
             .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),
         VoidLiteral(_) => Ok(Value::Void),
-        NumberLiteral(number_literal) => Ok(Value::from(number_literal.value)),
-        StringLiteral(string_literal) => Ok(Value::from(string_literal.value)),
+        NumberLiteral(number_literal) => Ok(Value::from(number_literal.value.to_owned())),
+        StringLiteral(string_literal) => Ok(Value::from(string_literal.value.to_owned())),
         BooleanLiteral(boolean_literal) => Ok(Value::from(boolean_literal.value)),
         Function(function) => {
             let value = Value::from(Closure {
                 name: function.id.to_owned().name,
-                expression: function.expression,
-                slots: function.slots,
+                expression: function.expression.to_owned(),
+                slots: function.slots.to_owned(),
                 scope_chain: ctx.export_scope_chain(),
             });
             ctx.set_var(&function.id, value.clone());
@@ -571,20 +629,20 @@ fn eval_expr(expr: ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
         }
         Lambda(function) => Ok(Value::from(Closure {
             name: "anonymous".to_owned(),
-            expression: function.expression,
-            slots: function.slots,
+            expression: function.expression.to_owned(),
+            slots: function.slots.to_owned(),
             scope_chain: ctx.export_scope_chain(),
         })),
     }
 }
 
-pub fn exec_with_context(program: ast::Program, ctx: &mut Context) -> Result<Value, Value> {
-    eval_expr_list(program.body, ctx)
+pub fn exec_with_context(program: &ast::Program, ctx: &mut Context) -> Result<Value, Value> {
+    eval_expr_list(&program.body, ctx)
 }
 
-pub fn exec(program: ast::Program) -> Result<Value, Value> {
+pub fn exec(program: &ast::Program) -> Result<Value, Value> {
     let mut context = Context::new();
-    eval_expr_list(program.body, &mut context)
+    eval_expr_list(&program.body, &mut context)
 }
 
 #[cfg(test)]

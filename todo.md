@@ -11,7 +11,8 @@
 - [x] Add void value
 - [x] Call stack and scops
 - [x] Ifs
-- [ ] Fix lexical scope
+- [x] Fix lexical scope
+- [ ] Loops
 
 ## Docs
 
