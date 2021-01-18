@@ -4,6 +4,9 @@ version = "0.1.0"
 authors = ["Moritz Kneilmann <moritz.kneilmann@gmx.de>"]
 edition = "2018"
 
+[profile.release]
+lto = true
+
 [dependencies]
 rustyline = "5.0.0"
 clap = "2.33.0"
