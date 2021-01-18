@@ -482,7 +482,11 @@ fn eval_func(callee: &Value, mut args: Vec<Value>, ctx: &mut Context) -> Result<
             ctx.push_stack(frame);
 
             for (i, arg) in args.drain(..).enumerate() {
-                ctx.set_var(&closure.slots[i].id, arg);
+                if i < closure.slots.len() {
+                    ctx.set_var(&closure.slots[i].id, arg);
+                } else {
+                    break;
+                }
             }
 
             let result = eval_expr(&closure.expression, ctx);
@@ -655,12 +659,12 @@ mod tests {
         let mut ctx = Context::new();
 
         let ast = parser::parse_string("let foo = 1;").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::Number(1.0));
 
         let ast = parser::parse_string("foo;").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::Number(1.0));
     }
@@ -670,12 +674,12 @@ mod tests {
         let mut ctx = Context::new();
 
         let ast = parser::parse_string("function addOne(arg) { arg + 1 };").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result.get_type(), "Function");
 
         let ast = parser::parse_string("addOne(1);").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::Number(2.0));
     }
@@ -685,19 +689,19 @@ mod tests {
         let mut ctx = Context::new();
 
         let ast = parser::parse_string("let add = (a) => (b) => a + b").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result.get_type(), "Function");
 
         let ast = parser::parse_string("let add2 = add(2);").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result.get_type(), "Function");
 
         let ast = parser::parse_string("add2(1);").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
-        assert_eq!(result, Value::Number(3.0));
+        assert_eq!(result, Value::from(3.0));
     }
 
     #[test]
@@ -705,14 +709,14 @@ mod tests {
         let mut ctx = Context::new();
 
         let ast = parser::parse_string("let add = (a) => (b) => a + b").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result.get_type(), "Function");
 
         let ast = parser::parse_string("add(2)(1);").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
-        assert_eq!(result, Value::Number(3.0));
+        assert_eq!(result, Value::from(3.0));
     }
 
     #[test]
@@ -720,13 +724,28 @@ mod tests {
         let mut ctx = Context::new();
 
         let ast = parser::parse_string("let add3 = (a) => (b) => (c) => a + b + c").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result.get_type(), "Function");
 
         let ast = parser::parse_string("add3(2)(1)(1);").unwrap();
-        let result = exec_with_context(ast, &mut ctx).unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
 
-        assert_eq!(result, Value::Number(4.0));
+        assert_eq!(result, Value::from(4.0));
+    }
+
+    #[test]
+    fn test_call_with_too_many_args() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let f = (a) => a").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("f(1, 2, 3);").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(1.0));
     }
 }
