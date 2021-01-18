@@ -188,7 +188,6 @@ impl Value {
                 "  ".repeat(depth),
             )
             .normal(),
-            // TODO: Native functions should have a name too...
             Value::NativeFunction(value) => format!("[NativeFunction: {}]", value.name).blue(),
         }
     }
