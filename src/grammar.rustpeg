@@ -49,7 +49,7 @@ call_expr -> Expression
     }
 
 expr_tail -> ExpressionTail
-    = __ "(" __ args:expr_list __ ","? __ ")" __ { ExpressionTail::Call(args) }
+    = __ "(" __ args:expr_list __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
 
 atom_expr -> Expression
@@ -58,6 +58,7 @@ atom_expr -> Expression
     / block:block { Expression::Block(Box::new(block)) }
     / nl:number_literal { Expression::NumberLiteral(Box::new(nl)) }
     / sl:string_literal { Expression::StringLiteral(Box::new(sl)) }
+    / ll:list_literal { Expression::ListLiteral(Box::new(ll)) }
     / bl:boolean_literal { Expression::BooleanLiteral(Box::new(bl)) }
     / vl:void_literal { Expression::VoidLiteral(Box::new(vl)) }
     / id:id { Expression::Id(Box::new(id)) }
@@ -141,6 +142,9 @@ escape -> char
        "n" => '\n',
        _ => c.chars().next().unwrap()
     } }
+
+list_literal -> ListLiteral
+    = "[" __  values:expr_list __ "]" { ListLiteral{ values } }
 
 boolean_literal -> BooleanLiteral
     = keyword_true { BooleanLiteral { value: true } }

@@ -26,6 +26,7 @@ pub enum Expression {
     MemberAccess(Box<MemberAccess>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
+    ListLiteral(Box<ListLiteral>),
     Unary(Box<Unary>),
     VoidLiteral(Box<VoidLiteral>),
 }
@@ -45,6 +46,7 @@ impl Display for Expression {
             Expression::MemberAccess(ast) => write!(f, "{}", ast),
             Expression::NumberLiteral(ast) => write!(f, "{}", ast),
             Expression::StringLiteral(ast) => write!(f, "{}", ast),
+            Expression::ListLiteral(ast) => write!(f, "{}", ast),
             Expression::Unary(ast) => write!(f, "{}", ast),
             Expression::VoidLiteral(ast) => write!(f, "{}", ast),
         }
@@ -290,6 +292,17 @@ impl Display for StringLiteral {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct ListLiteral {
+    pub values: Vec<Expression>,
+}
+
+impl Display for ListLiteral {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write_list(f, &self.values, ", ")
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct BooleanLiteral {
     pub value: bool,
 }
@@ -341,6 +354,9 @@ pub mod build {
     }
     pub fn expr_string_literal(string_literal: StringLiteral) -> Expression {
         Expression::StringLiteral(Box::new(string_literal))
+    }
+    pub fn expr_list_literal(list_literal: ListLiteral) -> Expression {
+        Expression::ListLiteral(Box::new(list_literal))
     }
     pub fn expr_boolean_literal(boolean_literal: BooleanLiteral) -> Expression {
         Expression::BooleanLiteral(Box::new(boolean_literal))
@@ -543,6 +559,13 @@ pub mod build {
     }
     pub fn string_literal_expr(value: &str) -> Expression {
         expr_string_literal(string_literal(value))
+    }
+
+    pub fn list_literal(values: Vec<Expression>) -> ListLiteral {
+        ListLiteral { values }
+    }
+    pub fn list_literal_expr(values: Vec<Expression>) -> Expression {
+        expr_list_literal(list_literal(values))
     }
 
     pub fn boolean_literal(value: bool) -> BooleanLiteral {

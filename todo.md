@@ -12,7 +12,9 @@
 - [x] Call stack and scops
 - [x] Ifs
 - [x] Fix lexical scope
-- [ ] Loops
+- [x] Loops
+- [ ] bind operator
+- [ ] mutable state
 
 ## Docs
 
@@ -43,7 +45,6 @@
 - [x] Fix `as_string` vs `to_string` on Value
 - [x] Super basic std lib
 - [x] Basic operators
-- [ ] Iterators and Ranges
 
 ## Fun
 
@@ -72,11 +73,10 @@
 
 ## Complex Data Types
 
-- [ ] Literals for map and arrays
+- [x] Literals for arrays
+- [ ] Literals for maps
 - [ ] References for complex types / GC
 - [ ] Equal for complex types
-- [ ] Figure out how to handle methods, maybe just bind operator?
-- [ ] Figure out Prototypes / inheritance
 
 ## Features
 

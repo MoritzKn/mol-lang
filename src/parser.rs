@@ -868,4 +868,37 @@ mod tests {
 
         assert_eq!(result, ast);
     }
+
+    #[test]
+    fn test_list_literal() {
+        let result = parse_string("[1, 2, 3]").unwrap();
+        let ast = program(vec![list_literal_expr(vec![
+            number_literal_expr(1.0),
+            number_literal_expr(2.0),
+            number_literal_expr(3.0),
+        ])]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_list_literal_nested() {
+        let result = parse_string("[1, [2, 3]]").unwrap();
+        let ast = program(vec![list_literal_expr(vec![
+            number_literal_expr(1.0),
+            list_literal_expr(vec![number_literal_expr(2.0), number_literal_expr(3.0)]),
+        ])]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_list_literal_string() {
+        let result = parse_string("['foo [] bar']").unwrap();
+        let ast = program(vec![list_literal_expr(vec![string_literal_expr(
+            "foo [] bar",
+        )])]);
+
+        assert_eq!(result, ast);
+    }
 }

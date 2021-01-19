@@ -28,26 +28,6 @@ fn inspect_scope_chain(chain: &[ScopeRef]) -> String {
     s
 }
 
-pub fn loop_while(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
-    let arg = args
-        .into_iter()
-        .next()
-        .ok_or_else(|| Value::from("TypeError: Expected one argument but got 0"))?;
-
-    let mut i = 0;
-    loop {
-        let should_break = eval_func(&arg, vec![Value::from(i)], ctx)?;
-
-        if should_break.as_boolean()? {
-            break;
-        }
-
-        i += 1;
-    }
-
-    Ok(Value::Void)
-}
-
 pub fn install_stdlib(frame: &mut Frame) {
     use crate::stdlib as lib;
 
@@ -66,7 +46,10 @@ pub fn install_stdlib(frame: &mut Frame) {
     }
 
     register::<NativeFunctionDef>(frame, "typeof", ("typeof", lib::type_of));
-    register::<NativeFunctionDef>(frame, "while", ("while", loop_while));
+    register::<NativeFunctionDef>(frame, "map", ("map", lib::map));
+    register::<NativeFunctionDef>(frame, "reduce", ("reduce", lib::reduce));
+    register::<NativeFunctionDef>(frame, "seq", ("seq", lib::seq));
+    register::<NativeFunctionDef>(frame, "concat", ("concat", lib::concat));
 
     namespace(frame, "console", |mut ns| {
         register_in_ns::<NativeFunctionDef>(&mut ns, "log", ("log", lib::console::log));
@@ -277,6 +260,12 @@ impl From<isize> for Value {
     }
 }
 
+impl From<i64> for Value {
+    fn from(number: i64) -> Value {
+        Value::Number(number as f64)
+    }
+}
+
 impl From<String> for Value {
     fn from(string: String) -> Value {
         Value::String(string)
@@ -472,7 +461,7 @@ impl Context {
     }
 }
 
-fn eval_func(callee: &Value, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+pub fn eval_func(callee: &Value, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
     match callee {
         Value::Function(closure) => {
             // The closure frame only has a weak ref to the scope so it is very important that the owned scope chain lives until the closure is evaluated
@@ -619,6 +608,15 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
         VoidLiteral(_) => Ok(Value::Void),
         NumberLiteral(number_literal) => Ok(Value::from(number_literal.value.to_owned())),
         StringLiteral(string_literal) => Ok(Value::from(string_literal.value.to_owned())),
+        ListLiteral(list_literal) => {
+            let results: Result<Vec<Value>, Value> = list_literal
+                .values
+                .iter()
+                .map(|expr| eval_expr(expr, ctx))
+                .collect();
+
+            results.map(Value::from)
+        }
         BooleanLiteral(boolean_literal) => Ok(Value::from(boolean_literal.value)),
         Function(function) => {
             let value = Value::from(Closure {
