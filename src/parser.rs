@@ -901,4 +901,39 @@ mod tests {
 
         assert_eq!(result, ast);
     }
+
+    #[test]
+    fn test_multiple_statements() {
+        let result = parse_string("test();test()").unwrap();
+        let ast = program(vec![
+            call_expr(id_expr("test"), vec![]),
+            call_expr(id_expr("test"), vec![]),
+        ]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_trailing_semicolon() {
+        let result = parse_string("test();").unwrap();
+        let ast = program(vec![call_expr(id_expr("test"), vec![])]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_leading_semicolon() {
+        let result = parse_string(";test()").unwrap();
+        let ast = program(vec![call_expr(id_expr("test"), vec![])]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_multiple_semicolons() {
+        let result = parse_string(";;;").unwrap();
+        let ast = program(vec![]);
+
+        assert_eq!(result, ast);
+    }
 }

@@ -58,7 +58,7 @@
 - [x] Operator precedence
 - [x] Fix operator precedence in more complicated cases
 - [x] Reserved words in declarations (void, typeof)
-- [ ] Multiple semicolons after each other and in stating pos
+- [x] Multiple semicolons after each other and in stating pos
 - [ ] Semicolons after block should be optional
 - [ ] Write custom lexer
 - [ ] Write custom parser?

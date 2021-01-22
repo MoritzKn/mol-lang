@@ -2,13 +2,13 @@ use crate::ast::*;
 use super::ExpressionTail;
 
 pub program -> Program
-    = body:block_body { Program { body } }
+    = __ body:block_body __ { Program { body } }
 
 block_body -> Vec<Expression>
-    = body:expr_wrapped ** ";" __ ";"? __ { body }
+    = stmt_seperator? body:expr ** stmt_seperator stmt_seperator? { body }
 
-expr_wrapped -> Expression
-    = __ expr:expr __ { expr }
+stmt_seperator
+    = __ ";" __ stmt_seperator?
 
 expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
@@ -64,7 +64,7 @@ atom_expr -> Expression
     / id:id { Expression::Id(Box::new(id)) }
 
 expr_list -> Vec<Expression>
-    = expr:expr_wrapped ** "," __ ","? { expr }
+    = expr:expr ** (__ "," __) __ ","? { expr }
 
 declaration -> Declaration
     = keyword_let __ id:id __ "=" __ value:expr { Declaration{ id, value } }
