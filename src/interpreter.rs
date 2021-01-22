@@ -8,17 +8,14 @@ type ScopeRef = Arc<Mutex<Scope>>;
 type ScopeRefWeak = Weak<Mutex<Scope>>;
 
 #[cfg(debug_assertions)]
-fn inspect_scope_chain(chain: &[ScopeRef]) -> String {
-    let mut s = String::new();
-
+fn inspect_scope_chain(chain: &[ScopeRef]) {
     let mut i = 0;
     for scope in chain {
         i += 1;
+        print!("layer{}: ", i);
         let scope = scope.lock().unwrap();
-        s.push_str(&format!("=== scope layer {} ===\n{}", i, scope))
+        scope.print();
     }
-
-    s
 }
 
 #[cfg(debug_assertions)]
@@ -40,6 +37,19 @@ pub fn inspect_scope_chain_binding(args: Vec<Value>, _ctx: &mut Context) -> Resu
             arg.get_type()
         ))),
     }
+}
+
+#[cfg(debug_assertions)]
+fn inspect_scope(scope: &ScopeRef) {
+    let scope = scope.lock().unwrap();
+    scope.print();
+}
+
+#[cfg(debug_assertions)]
+pub fn inspect_scope_binding(_args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    Ok(Value::from(inspect_scope(
+        &ctx.current.lock().unwrap().scope,
+    )))
 }
 
 pub fn install_stdlib(frame: &mut Frame) {
@@ -64,8 +74,15 @@ pub fn install_stdlib(frame: &mut Frame) {
     #[cfg(debug_assertions)]
     register::<NativeFunctionDef>(
         frame,
-        "inspect_scope_chain",
-        ("inspect_scope_chain", inspect_scope_chain_binding),
+        "inspectScopeChain",
+        ("inspectScopeChain", inspect_scope_chain_binding),
+    );
+
+    #[cfg(debug_assertions)]
+    register::<NativeFunctionDef>(
+        frame,
+        "inspectScope",
+        ("inspectScope", inspect_scope_binding),
     );
 
     register::<NativeFunctionDef>(frame, "map", ("map", lib::map));
@@ -446,15 +463,14 @@ impl Scope {
     fn set(&mut self, name: String, value: Value) {
         self.vars.insert(name, value);
     }
-}
 
-impl Display for Scope {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    #[cfg(debug_assertions)]
+    fn print(&self) {
+        println!("{{");
         for (key, value) in &self.vars {
-            writeln!(f, "  {}: {}", key, value.inspect())?;
+            println!("  {}: {}", key, value.print(1));
         }
-
-        Ok(())
+        println!("}}");
     }
 }
 
