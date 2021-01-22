@@ -375,6 +375,30 @@ mod tests {
     }
 
     #[test]
+    fn test_number_nan() {
+        let result = parse_string(r#"NaN"#).unwrap();
+        let ast = program(vec![number_literal_expr(std::f64::NAN)]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_number_infinity() {
+        let result = parse_string(r#"Infinity"#).unwrap();
+        let ast = program(vec![number_literal_expr(std::f64::INFINITY)]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_number_neg_infinity() {
+        let result = parse_string(r#"-Infinity"#).unwrap();
+        let ast = program(vec![neg_expr(number_literal_expr(std::f64::INFINITY))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
     fn test_number_literal_member_access() {
         let result = parse_string(r#"42..bar"#).unwrap();
         let ast = program(vec![member_access_expr(

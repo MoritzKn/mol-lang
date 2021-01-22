@@ -269,14 +269,30 @@ impl Display for Lambda {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct NumberLiteral {
+    // Must be positive!
     pub value: f64,
+}
+
+// NumberLiteral for NaN shoul equal it self
+impl PartialEq for NumberLiteral {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value || (self.value.is_nan() && other.value.is_nan())
+    }
 }
 
 impl Display for NumberLiteral {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
+        assert!(!(self.value < 0.0));
+
+        if self.value == std::f64::INFINITY {
+            write!(f, "Infinity")
+        } else if self.value.is_nan() {
+            write!(f, "NaN")
+        } else {
+            write!(f, "{}", self.value)
+        }
     }
 }
 

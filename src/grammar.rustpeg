@@ -117,6 +117,8 @@ slot_type_sufix -> Id
 
 number_literal -> NumberLiteral
     = value:$([0-9]+ "."? [0-9]*) { NumberLiteral { value: value.parse().unwrap() } }
+    / keyword_nan { NumberLiteral { value: std::f64::NAN } }
+    / keyword_inf { NumberLiteral { value: std::f64::INFINITY } }
 
 string_literal -> StringLiteral
     = "\"" value:string_content_double "\"" { StringLiteral { value } }
@@ -155,17 +157,30 @@ void_literal -> VoidLiteral
 
 __ = #quiet<(whitespace / eol / comment)*>
 
-keyword = keyword_function / keyword_if / keyword_else / keyword_let / keyword_void / keyword_true / keyword_false / keyword_and / keyword_or
+keyword
+  = keyword_and
+  / keyword_else
+  / keyword_false
+  / keyword_if
+  / keyword_inf
+  / keyword_let
+  / keyword_nan
+  / keyword_or
+  / keyword_true
+  / keyword_void
+  / keyword_function
 
+keyword_and = "and" end_of_word
+keyword_else = "else" end_of_word
+keyword_false = "false" end_of_word
 keyword_function = "function" end_of_word
 keyword_if = "if" end_of_word
-keyword_else = "else" end_of_word
+keyword_inf = "Infinity" end_of_word
 keyword_let = "let" end_of_word
-keyword_void = "void" end_of_word
-keyword_true = "true" end_of_word
-keyword_false = "false" end_of_word
-keyword_and = "and" end_of_word
+keyword_nan = "NaN" end_of_word
 keyword_or = "or" end_of_word
+keyword_true = "true" end_of_word
+keyword_void = "void" end_of_word
 
 end_of_word = ! [a-zA-Z0-9_$]
 

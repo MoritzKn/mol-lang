@@ -108,13 +108,6 @@ pub enum Value {
     NativeFunction(NativeFunction),
 }
 
-impl PartialEq for Value {
-    fn eq(&self, other: &Self) -> bool {
-        // IDEA: Should the runtime and rust impl be the same?
-        self.equals(other)
-    }
-}
-
 impl Value {
     pub fn get_type(&self) -> String {
         match self {
@@ -216,11 +209,28 @@ impl Value {
     }
 }
 
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        // IDEA: Should the runtime and rust impl be the same?
+        self.equals(other)
+    }
+}
+
 impl Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Value::Void => write!(f, "void"),
-            Value::Number(value) => write!(f, "{}", value),
+            Value::Number(value) => {
+                if *value == std::f64::INFINITY {
+                    write!(f, "Infinity")
+                } else if *value == -std::f64::INFINITY {
+                    write!(f, "-Infinity")
+                } else if value.is_nan() {
+                    write!(f, "NaN")
+                } else {
+                    write!(f, "{}", value)
+                }
+            }
             Value::String(value) => write!(f, "{}", value),
             Value::Boolean(value) => write!(f, "{}", value),
             Value::List(value) => write!(
@@ -754,5 +764,77 @@ mod tests {
         let ast = parser::parse_string("void == void").unwrap();
         let result = exec_with_context(&ast, &mut ctx).unwrap();
         assert_eq!(result, Value::from(true));
+    }
+
+    #[test]
+    fn test_neg_zero_equals_zero() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("-0 == 0").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from(true));
+    }
+
+    #[test]
+    fn test_nan_equal_nan() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("NaN == NaN").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from(false));
+    }
+
+    #[test]
+    fn test_nan_not_equal_nan() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("NaN != NaN").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from(true));
+    }
+
+    #[test]
+    fn test_nan_to_string() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("NaN ++ ''").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from("NaN"));
+    }
+
+    #[test]
+    fn test_neg_nan_to_string() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("-NaN ++ ''").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from("NaN"));
+    }
+
+    #[test]
+    fn test_infinity_to_string() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("Infinity ++ ''").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from("Infinity"));
+    }
+
+    #[test]
+    fn test_neg_infinity_to_string() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("-Infinity ++ ''").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from("-Infinity"));
+    }
+
+    #[test]
+    fn test_neg_zero_to_string() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("-0 ++ ''").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from("0"));
     }
 }
