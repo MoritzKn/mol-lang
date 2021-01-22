@@ -1,4 +1,4 @@
-use crate::interpreter::{eval_func, Context, Value};
+use crate::interpreter::{call_value, Context, Value};
 
 pub fn type_of(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
     args.into_iter()
@@ -51,7 +51,7 @@ pub fn map(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
         .next()
         .ok_or_else(|| Value::from("TypeError: Expected two argument but got 1"))
         .and_then(|v| match v {
-            Value::Function(_) | Value::NativeFunction(_) => Ok(v),
+            Value::Function(_) => Ok(v),
             _ => Err(Value::from(format!(
                 "TypeError: Expected function but got {}",
                 v.get_type()
@@ -59,7 +59,7 @@ pub fn map(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
         })?;
 
     list.into_iter()
-        .map(|value| eval_func(&callback, vec![value], ctx))
+        .map(|value| call_value(&callback, vec![value], ctx))
         .collect::<Result<Vec<Value>, Value>>()
         .map(Value::from)
 }
@@ -82,7 +82,7 @@ pub fn reduce(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
         .next()
         .ok_or_else(|| Value::from("TypeError: Expected 3 argument but only got 1"))
         .and_then(|v| match v {
-            Value::Function(_) | Value::NativeFunction(_) => Ok(v),
+            Value::Function(_) => Ok(v),
             _ => Err(Value::from(format!(
                 "TypeError: Expected function but got {}",
                 v.get_type()
@@ -94,7 +94,7 @@ pub fn reduce(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
         .ok_or_else(|| Value::from("TypeError: Expected 3 argument but only got 2"))?;
 
     list.into_iter().try_fold(inital, |acc, curr| {
-        eval_func(&callback, vec![acc, curr], ctx)
+        call_value(&callback, vec![acc, curr], ctx)
     })
 }
 

@@ -51,6 +51,7 @@ call_expr -> Expression
 expr_tail -> ExpressionTail
     = __ "(" __ args:expr_list __ ")" __ { ExpressionTail::Call(args) }
     / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
+    / __ ":" __ method:atom_expr __ { ExpressionTail::Bind(method) }
 
 atom_expr -> Expression
     = "(" __ expr:expr __ ")" { expr }

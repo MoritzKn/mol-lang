@@ -1,7 +1,8 @@
-use crate::ast::{Call, Expression, Id, MemberAccess, Program};
+use crate::ast::{Bind, Call, Expression, Id, MemberAccess, Program};
 
 enum ExpressionTail {
     MemberAccess(Id),
+    Bind(Expression),
     Call(Vec<Expression>),
 }
 
@@ -16,6 +17,10 @@ impl ExpressionTail {
                     property,
                 }))
             }
+            ExpressionTail::Bind(method) => Expression::Bind(Box::new(Bind {
+                object: expr,
+                method,
+            })),
             ExpressionTail::Call(arguments) => Expression::Call(Box::new(Call {
                 callee: expr,
                 arguments,
@@ -292,6 +297,36 @@ mod tests {
         let result = parse_string(r#"let()"#);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_bind() {
+        let result = parse_string(r#"foo:bar"#).unwrap();
+        let ast = program(vec![bind_expr(id_expr("foo"), id_expr("bar"))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_bind_call() {
+        let result = parse_string(r#"foo:bar()"#).unwrap();
+        let ast = program(vec![call_expr(
+            bind_expr(id_expr("foo"), id_expr("bar")),
+            vec![],
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_dobble_bind_call() {
+        let result = parse_string(r#"foo:bar:baz()"#).unwrap();
+        let ast = program(vec![call_expr(
+            bind_expr(bind_expr(id_expr("foo"), id_expr("bar")), id_expr("baz")),
+            vec![],
+        )]);
+
+        assert_eq!(result, ast);
     }
 
     #[test]

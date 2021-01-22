@@ -7,14 +7,7 @@ use std::{fmt, fmt::Display};
 type ScopeRef = Arc<Mutex<Scope>>;
 type ScopeRefWeak = Weak<Mutex<Scope>>;
 
-#[derive(Debug, Clone)]
-pub struct Closure {
-    name: String,
-    scope_chain: Vec<ScopeRef>,
-    slots: Vec<ast::Slot>,
-    expression: ast::Expression,
-}
-
+#[cfg(debug_assertions)]
 fn inspect_scope_chain(chain: &[ScopeRef]) -> String {
     let mut s = String::new();
 
@@ -26,6 +19,27 @@ fn inspect_scope_chain(chain: &[ScopeRef]) -> String {
     }
 
     s
+}
+
+#[cfg(debug_assertions)]
+pub fn inspect_scope_chain_binding(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
+    let arg = args
+        .into_iter()
+        .next()
+        .ok_or_else(|| Value::from("TypeError: Expected 1 argument but got 0"))?;
+
+    match arg {
+        Value::Function(func) => match func {
+            Function::Closure(closue) => Ok(Value::from(inspect_scope_chain(&closue.scope_chain))),
+            _ => Err(Value::from(
+                "TypeError: Only closure functions have a scope chain",
+            )),
+        },
+        _ => Err(Value::from(format!(
+            "TypeError: Expected function but got {}",
+            arg.get_type()
+        ))),
+    }
 }
 
 pub fn install_stdlib(frame: &mut Frame) {
@@ -46,6 +60,14 @@ pub fn install_stdlib(frame: &mut Frame) {
     }
 
     register::<NativeFunctionDef>(frame, "typeof", ("typeof", lib::type_of));
+
+    #[cfg(debug_assertions)]
+    register::<NativeFunctionDef>(
+        frame,
+        "inspect_scope_chain",
+        ("inspect_scope_chain", inspect_scope_chain_binding),
+    );
+
     register::<NativeFunctionDef>(frame, "map", ("map", lib::map));
     register::<NativeFunctionDef>(frame, "reduce", ("reduce", lib::reduce));
     register::<NativeFunctionDef>(frame, "seq", ("seq", lib::seq));
@@ -62,6 +84,14 @@ pub fn install_stdlib(frame: &mut Frame) {
         register_in_ns::<NativeFunctionDef>(&mut ns, "greatest", ("greatest", lib::math::greatest));
         register_in_ns::<NativeFunctionDef>(&mut ns, "smallest", ("smallest", lib::math::smallest));
     });
+}
+
+#[derive(Debug, Clone)]
+pub struct Closure {
+    name: String,
+    scope_chain: Vec<ScopeRef>,
+    slots: Vec<ast::Slot>,
+    expression: ast::Expression,
 }
 
 impl Display for Closure {
@@ -96,6 +126,60 @@ impl fmt::Debug for NativeFunction {
     }
 }
 
+impl Display for NativeFunction {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "function {}() {{ [native code] }}", self.name)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Binding {
+    object: Value,
+    method: Function,
+    name: String,
+}
+
+impl Display for Binding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "function {}() {{ [native code] }}", self.name)
+    }
+}
+
+#[derive(Debug, Clone)]
+pub enum Function {
+    Closure(Box<Closure>),
+    NativeFunction(Box<NativeFunction>),
+    Binding(Box<Binding>),
+}
+
+impl Function {
+    fn print(&self) -> String {
+        match self {
+            Function::Closure(value) => format!("[Function: {}]", value.name),
+            Function::NativeFunction(value) => format!("[Function: {} (native)]", value.name),
+            Function::Binding(value) => format!("[Function: {} (bound)]", value.name),
+        }
+    }
+
+    fn name(&self) -> &str {
+        match self {
+            Function::Closure(value) => &value.name,
+            Function::NativeFunction(value) => value.name,
+            Function::Binding(value) => &value.name,
+        }
+    }
+}
+
+impl Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Function::Closure(v) => write!(f, "{}", v),
+            Function::NativeFunction(v) => write!(f, "{}", v),
+            Function::Binding(v) => write!(f, "{}", v),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Void,
@@ -104,8 +188,7 @@ pub enum Value {
     Boolean(bool),
     List(Vec<Value>),
     Map(HashMap<String, Value>),
-    Function(Box<Closure>),
-    NativeFunction(NativeFunction),
+    Function(Function),
 }
 
 impl Value {
@@ -118,7 +201,6 @@ impl Value {
             Value::List(_) => String::from("List"),
             Value::Map(_) => String::from("Map"),
             Value::Function(_) => String::from("Function"),
-            Value::NativeFunction(_) => String::from("NativeFunction"),
         }
     }
 
@@ -149,7 +231,7 @@ impl Value {
                     .join(", ")
             )
             .normal(),
-            Value::Function(value) => format!("[Function: {}]", value.name).blue(),
+            Value::Function(value) => value.print().blue(),
             Value::Map(value) => format!(
                 "{{\n{}\n{}}}",
                 value
@@ -164,7 +246,6 @@ impl Value {
                 "  ".repeat(depth),
             )
             .normal(),
-            Value::NativeFunction(value) => format!("[NativeFunction: {}]", value.name).blue(),
         }
     }
 
@@ -203,8 +284,9 @@ impl Value {
                 Value::Boolean(other) => own == other,
                 _ => false,
             },
+
             // TODO: Implement equal for complex types
-            _ => false,
+            Value::Function(_) | Value::Map(_) | Value::List(_) => false,
         }
     }
 }
@@ -244,16 +326,18 @@ impl Display for Value {
             ),
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
-            // TODO: Native functions should have a name too
-            Value::NativeFunction(value) => {
-                write!(f, "function {}() {{ [native code] }}", value.name)
-            }
         }
     }
 }
 
 impl Default for Value {
     fn default() -> Self {
+        Value::Void
+    }
+}
+
+impl From<()> for Value {
+    fn from(_: ()) -> Value {
         Value::Void
     }
 }
@@ -266,6 +350,12 @@ impl From<f64> for Value {
 
 impl From<isize> for Value {
     fn from(number: isize) -> Value {
+        Value::Number(number as f64)
+    }
+}
+
+impl From<i32> for Value {
+    fn from(number: i32) -> Value {
         Value::Number(number as f64)
     }
 }
@@ -306,21 +396,34 @@ impl From<HashMap<String, Value>> for Value {
     }
 }
 
+impl From<Function> for Value {
+    fn from(func: Function) -> Value {
+        Value::Function(func)
+    }
+}
+
 impl From<Closure> for Value {
-    fn from(func: Closure) -> Value {
-        Value::Function(Box::new(func))
+    fn from(closure: Closure) -> Value {
+        Value::from(Function::Closure(Box::new(closure)))
     }
 }
 
 impl From<NativeFunction> for Value {
     fn from(nf: NativeFunction) -> Value {
-        Value::NativeFunction(nf)
+        Value::from(Function::NativeFunction(Box::new(nf)))
     }
 }
 
 impl From<NativeFunctionDef> for Value {
     fn from((name, binding): NativeFunctionDef) -> Value {
-        Value::NativeFunction(NativeFunction { name, binding })
+        let nf = NativeFunction { name, binding };
+        Value::from(nf)
+    }
+}
+
+impl From<Binding> for Value {
+    fn from(binding: Binding) -> Value {
+        Value::from(Function::Binding(Box::new(binding)))
     }
 }
 
@@ -471,9 +574,9 @@ impl Context {
     }
 }
 
-pub fn eval_func(callee: &Value, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
-    match callee {
-        Value::Function(closure) => {
+fn call_func(func: &Function, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    match func {
+        Function::Closure(closure) => {
             // The closure frame only has a weak ref to the scope so it is very important that the owned scope chain lives until the closure is evaluated
             let frame = Frame::from_closure(&closure.scope_chain);
             let frame = Arc::new(Mutex::new(frame));
@@ -495,25 +598,25 @@ pub fn eval_func(callee: &Value, mut args: Vec<Value>, ctx: &mut Context) -> Res
             result
         }
 
-        Value::NativeFunction(nf) => (nf.binding)(args, ctx),
+        Function::Binding(binding) => call_func(
+            &binding.method,
+            [vec![binding.object.to_owned()], args].concat(),
+            ctx,
+        ),
+
+        Function::NativeFunction(nf) => (nf.binding)(args, ctx),
+    }
+}
+
+pub fn call_value(callee: &Value, args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    match callee {
+        Value::Function(func) => call_func(func, args, ctx),
 
         _ => Err(Value::from(format!(
             "TypeError: {} is not a function",
             callee.inspect()
         ))),
     }
-}
-
-fn call_func(call: &ast::Call, ctx: &mut Context) -> Result<Value, Value> {
-    let callee = eval_expr(&call.callee, ctx)?;
-
-    let mut args = vec![];
-    for expr in &call.arguments {
-        let value = eval_expr(&expr, ctx)?;
-        args.push(value);
-    }
-
-    eval_func(&callee, args, ctx)
 }
 
 fn eval_expr_list(expr_list: &[ast::Expression], ctx: &mut Context) -> Result<Value, Value> {
@@ -528,7 +631,17 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
     use ast::Expression::*;
 
     match expr {
-        Call(call) => call_func(call, ctx),
+        Call(call) => {
+            let callee = eval_expr(&call.callee, ctx)?;
+
+            let args = call
+                .arguments
+                .iter()
+                .map(|expr| eval_expr(&expr, ctx))
+                .collect::<Result<Vec<Value>, Value>>()?;
+
+            call_value(&callee, args, ctx)
+        }
         Binary(binary) => {
             use ast::BinaryOperator::*;
 
@@ -583,14 +696,30 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
 
             match object {
                 Value::Map(map) => Ok(map.get(prop).cloned().unwrap_or_default()),
-                Value::Function(closue) if prop == "scope" => {
-                    Ok(Value::from(inspect_scope_chain(&closue.scope_chain)))
-                }
-
                 _ => Err(Value::from(format!(
                     "TypeError: Can not access property '{}' of {}",
                     prop,
                     object.inspect()
+                ))),
+            }
+        }
+        Bind(bind) => {
+            let object = eval_expr(&bind.object, ctx)?;
+            let method = eval_expr(&bind.method, ctx)?;
+
+            match method {
+                Value::Function(func) => {
+                    let name = func.name().to_owned();
+
+                    Ok(Value::from(Binding {
+                        object,
+                        method: func,
+                        name,
+                    }))
+                }
+                _ => Err(Value::from(format!(
+                    "TypeError: Can not bind non function {}",
+                    method.get_type()
                 ))),
             }
         }
@@ -836,5 +965,36 @@ mod tests {
         let ast = parser::parse_string("-0 ++ ''").unwrap();
         let result = exec_with_context(&ast, &mut ctx).unwrap();
         assert_eq!(result, Value::from("0"));
+    }
+
+    #[test]
+    fn test_bind() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let add = (a, b) => a + b").unwrap();
+        exec_with_context(&ast, &mut ctx).unwrap();
+
+        let ast = parser::parse_string("let add2 = 2:add").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("add2(2)").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(4));
+    }
+
+    #[test]
+    fn test_bind_direct_call() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let add = (a, b) => a + b").unwrap();
+        exec_with_context(&ast, &mut ctx).unwrap();
+
+        let ast = parser::parse_string("2:add(2)").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(4));
     }
 }

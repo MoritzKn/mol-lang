@@ -16,6 +16,16 @@ function fibonacci(num) {
 console.log('fibonacci of 16:', fibonacci(16));
 ```
 
+```mol
+let list = [1, 2, 3, 4];
+
+let sumOfSquares = list
+    :map((n) => n * n)
+    :reduce((acc, curr) => acc + curr, 0);
+
+console.log(sumOfSquares);
+```
+
 ## Getting Started
 
 Make sure you have [Rust installed](https://www.rust-lang.org/tools/install), then run:

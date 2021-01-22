@@ -24,6 +24,7 @@ pub enum Expression {
     Id(Box<Id>),
     Lambda(Box<Lambda>),
     MemberAccess(Box<MemberAccess>),
+    Bind(Box<Bind>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
     ListLiteral(Box<ListLiteral>),
@@ -44,6 +45,7 @@ impl Display for Expression {
             Expression::Id(ast) => write!(f, "{}", ast),
             Expression::Lambda(ast) => write!(f, "{}", ast),
             Expression::MemberAccess(ast) => write!(f, "{}", ast),
+            Expression::Bind(ast) => write!(f, "{}", ast),
             Expression::NumberLiteral(ast) => write!(f, "{}", ast),
             Expression::StringLiteral(ast) => write!(f, "{}", ast),
             Expression::ListLiteral(ast) => write!(f, "{}", ast),
@@ -206,6 +208,18 @@ impl Display for MemberAccess {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Bind {
+    pub object: Expression,
+    pub method: Expression,
+}
+
+impl Display for Bind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}:{}", self.object, self.method)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Declaration {
     pub id: Id,
     pub value: Expression,
@@ -359,6 +373,9 @@ pub mod build {
     pub fn expr_member_access(member_access: MemberAccess) -> Expression {
         Expression::MemberAccess(Box::new(member_access))
     }
+    pub fn expr_bind(bind: Bind) -> Expression {
+        Expression::Bind(Box::new(bind))
+    }
     pub fn expr_declaration(declaration: Declaration) -> Expression {
         Expression::Declaration(Box::new(declaration))
     }
@@ -501,7 +518,6 @@ pub mod build {
     pub fn block(body: Vec<Expression>) -> Block {
         Block { body }
     }
-
     pub fn block_expr(body: Vec<Expression>) -> Expression {
         Expression::Block(Box::new(block(body)))
     }
@@ -517,7 +533,6 @@ pub mod build {
             r#else,
         }
     }
-
     pub fn if_else_expr(condition: Expression, then: Expression, r#else: Expression) -> Expression {
         Expression::IfElse(Box::new(if_else(condition, then, Some(r#else))))
     }
@@ -525,7 +540,6 @@ pub mod build {
     pub fn call(callee: Expression, arguments: Vec<Expression>) -> Call {
         Call { callee, arguments }
     }
-
     pub fn call_expr(callee: Expression, arguments: Vec<Expression>) -> Expression {
         expr_call(call(callee, arguments))
     }
@@ -533,9 +547,15 @@ pub mod build {
     pub fn member_access(object: Expression, property: Id) -> MemberAccess {
         MemberAccess { object, property }
     }
-
     pub fn member_access_expr(object: Expression, property: Id) -> Expression {
         expr_member_access(member_access(object, property))
+    }
+
+    pub fn bind(object: Expression, method: Expression) -> Bind {
+        Bind { object, method }
+    }
+    pub fn bind_expr(object: Expression, method: Expression) -> Expression {
+        expr_bind(bind(object, method))
     }
 
     pub fn declaration(id: Id, value: Expression) -> Declaration {

@@ -13,7 +13,8 @@
 - [x] Ifs
 - [x] Fix lexical scope
 - [x] Loops
-- [ ] bind operator
+- [x] bind operator
+- [ ] Throw / Catch
 - [ ] mutable state
 
 ## Docs
@@ -77,8 +78,3 @@
 - [ ] Literals for maps
 - [ ] References for complex types / GC
 - [ ] Equal for complex types
-
-## Features
-
-- [ ] Throw / Errors
-- [ ] Pipe operator
