@@ -12,6 +12,8 @@ rustyline = "5.0.0"
 clap = "2.33.0"
 colored = "1.9.0"
 pretty_assertions = "0.6.1"
+env_logger = "0.8.2"
+log = "0.4.13"
 
 [build-dependencies]
 peg = "0.5.7"

@@ -1,3 +1,7 @@
+use std::env;
+
+use log;
+
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
@@ -5,9 +9,20 @@ use crate::interpreter;
 use crate::parser;
 
 pub fn start() {
+    let history_file = env::var("HOME")
+        .map(|dir| format!("{}/.mol_repl_history", dir))
+        .ok();
+
     let mut rl = Editor::<()>::new();
     let mut context = interpreter::Context::new();
     let mut multiline: Option<String> = Option::None;
+
+    if let Some(Err(err)) = history_file
+        .as_ref()
+        .map(|hisotry| rl.load_history(hisotry))
+    {
+        log::info!("No previous history: {}", err);
+    }
 
     loop {
         let promt = match multiline {
@@ -60,5 +75,12 @@ pub fn start() {
             Err(ReadlineError::Eof) => break,
             Err(err) => println!("Error: {:?}", err),
         }
+    }
+
+    if let Some(Err(err)) = history_file
+        .as_ref()
+        .map(|hisotry| rl.save_history(&hisotry))
+    {
+        eprintln!("Failed to save history: {}", err)
     }
 }

@@ -1,5 +1,7 @@
 extern crate clap;
 extern crate colored;
+extern crate env_logger;
+extern crate log;
 extern crate rustyline;
 
 mod ast;
@@ -58,6 +60,8 @@ fn exec_file(file: &str, cli: &Cli) {
 }
 
 fn main() {
+    env_logger::init();
+
     let cli = init_cli();
 
     if let Some(files) = cli.values_of("files") {
