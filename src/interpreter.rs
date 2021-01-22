@@ -197,7 +197,7 @@ impl Value {
 
     pub fn equals(&self, other: &Value) -> bool {
         match self {
-            Value::Void => matches!(self, Value::Void),
+            Value::Void => matches!(other, Value::Void),
             Value::Number(own) => match other {
                 Value::Number(other) => own == other,
                 _ => false,
@@ -745,5 +745,14 @@ mod tests {
         let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::from(1.0));
+    }
+
+    #[test]
+    fn test_void_equals_void() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("void == void").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+        assert_eq!(result, Value::from(true));
     }
 }
