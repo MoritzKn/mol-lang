@@ -8,14 +8,13 @@ type ScopeRef = Arc<Mutex<Scope>>;
 type ScopeRefWeak = Weak<Mutex<Scope>>;
 
 #[cfg(debug_assertions)]
-fn inspect_scope_chain(chain: &[ScopeRef]) {
-    let mut i = 0;
-    for scope in chain {
-        i += 1;
-        print!("layer{}: ", i);
-        let scope = scope.lock().unwrap();
-        scope.print();
-    }
+fn inspect_scope_chain(chain: &[ScopeRef]) -> Value {
+    Value::from(
+        chain
+            .iter()
+            .map(|scope| scope.lock().unwrap().export_as_value())
+            .collect::<Vec<Value>>(),
+    )
 }
 
 #[cfg(debug_assertions)]
@@ -40,9 +39,9 @@ pub fn inspect_scope_chain_binding(args: Vec<Value>, _ctx: &mut Context) -> Resu
 }
 
 #[cfg(debug_assertions)]
-fn inspect_scope(scope: &ScopeRef) {
+fn inspect_scope(scope: &ScopeRef) -> Value {
     let scope = scope.lock().unwrap();
-    scope.print();
+    scope.export_as_value()
 }
 
 #[cfg(debug_assertions)]
@@ -239,15 +238,26 @@ impl Value {
             Value::Number(value) => format!("{}", value).yellow(),
             Value::String(value) => format!("\"{}\"", value).green(),
             Value::Boolean(value) => format!("{}", value).yellow(),
-            Value::List(value) => format!(
-                "[{}]",
-                value
-                    .iter()
-                    .map(|v| v.print(depth).to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            )
-            .normal(),
+            Value::List(value) => {
+                if value.len() == 0 {
+                    format!("[]").normal()
+                } else {
+                    format!(
+                        "[\n{}\n{}]",
+                        value
+                            .iter()
+                            .map(|v| {
+                                let depth = depth + 1;
+
+                                format!("{}{}", "  ".repeat(depth), v.print(depth))
+                            })
+                            .collect::<Vec<String>>()
+                            .join(",\n"),
+                        "  ".repeat(depth),
+                    )
+                    .normal()
+                }
+            }
             Value::Function(value) => value.print().blue(),
             Value::Map(value) => format!(
                 "{{\n{}\n{}}}",
@@ -469,12 +479,8 @@ impl Scope {
     }
 
     #[cfg(debug_assertions)]
-    fn print(&self) {
-        println!("{{");
-        for (key, value) in &self.vars {
-            println!("  {}: {}", key, value.print(1));
-        }
-        println!("}}");
+    fn export_as_value(&self) -> Value {
+        Value::from(self.vars.clone())
     }
 }
 
