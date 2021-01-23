@@ -460,6 +460,10 @@ impl Scope {
         self.vars.get(name).cloned()
     }
 
+    fn list(&self) -> Vec<String> {
+        self.vars.keys().cloned().collect()
+    }
+
     fn set(&mut self, name: String, value: Value) {
         self.vars.insert(name, value);
     }
@@ -523,6 +527,26 @@ impl Frame {
         None
     }
 
+    /// Gets all variables form all scopes as a list of list
+    fn list_vars(&self) -> Vec<Vec<String>> {
+        let list = {
+            let scope = self.scope.lock().unwrap();
+            scope.list()
+        };
+
+        let mut all = vec![list];
+
+        for scope in self.scope_chain.iter().rev() {
+            let scope = scope.upgrade().expect("Scope already dropped");
+            let scope = scope.lock().unwrap();
+            let list = scope.list();
+
+            all.push(list)
+        }
+
+        all
+    }
+
     fn set_var(&mut self, name: String, value: Value) {
         let mut scope = self.scope.lock().unwrap();
         scope.set(name, value);
@@ -555,6 +579,10 @@ impl Context {
 
     fn get_var(&self, id: &ast::Id) -> Option<Value> {
         self.current.lock().unwrap().get_var(&id.name)
+    }
+
+    pub fn list_vars(&self) -> Vec<Vec<String>> {
+        self.current.lock().unwrap().list_vars()
     }
 
     fn set_var(&mut self, id: &ast::Id, value: Value) {

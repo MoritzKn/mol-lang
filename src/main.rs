@@ -3,6 +3,7 @@ extern crate colored;
 extern crate env_logger;
 extern crate log;
 extern crate rustyline;
+extern crate rustyline_derive;
 
 mod ast;
 mod interpreter;
