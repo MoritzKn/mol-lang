@@ -838,17 +838,6 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
                 }
             }
         }
-        Call(call) => {
-            let callee = eval_expr(&call.callee, ctx)?;
-
-            let args = call
-                .arguments
-                .iter()
-                .map(|expr| eval_expr(&expr, ctx))
-                .collect::<Result<Vec<Value>, Value>>()?;
-
-            call_value(&callee, args, ctx)
-        }
         Binary(binary) => {
             use ast::BinaryOperator::*;
 
@@ -884,25 +873,6 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
 
             Ok(value)
         }
-        Unary(unary) => {
-            use ast::UnaryOperator::*;
-
-            let expr = eval_expr(&unary.expr, ctx)?;
-
-            let value = match unary.op {
-                Not => Value::from(!expr.as_boolean()?),
-                Neg => Value::from(-expr.as_number()?),
-                Pos => Value::from(expr.as_number()?),
-            };
-
-            Ok(value)
-        }
-        MemberAccess(member_access) => {
-            let object = eval_expr(&member_access.object, ctx)?;
-            let property = Value::from(member_access.property.name.to_string());
-
-            access_member(&object, &property)
-        }
         Bind(bind) => {
             let object = eval_expr(&bind.object, ctx)?;
             let method = eval_expr(&bind.method, ctx)?;
@@ -923,17 +893,6 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
                 )),
             }
         }
-        Declaration(declaration) => {
-            let value = eval_expr(&declaration.value, ctx)?;
-            ctx.add_var(&declaration.id, value.clone());
-            Ok(value)
-        }
-        DynamicMemberAccess(dma) => {
-            let object = eval_expr(&dma.object, ctx)?;
-            let property = eval_expr(&dma.property, ctx)?;
-
-            access_member(&object, &property)
-        }
         Block(block) => {
             let frame = {
                 let current_frame = ctx.current.lock().unwrap();
@@ -949,6 +908,42 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
 
             result
         }
+        BooleanLiteral(boolean_literal) => Ok(Value::from(boolean_literal.value)),
+        Call(call) => {
+            let callee = eval_expr(&call.callee, ctx)?;
+
+            let args = call
+                .arguments
+                .iter()
+                .map(|expr| eval_expr(&expr, ctx))
+                .collect::<Result<Vec<Value>, Value>>()?;
+
+            call_value(&callee, args, ctx)
+        }
+        Declaration(declaration) => {
+            let value = eval_expr(&declaration.value, ctx)?;
+            ctx.add_var(&declaration.id, value.clone());
+            Ok(value)
+        }
+        DynamicMemberAccess(dma) => {
+            let object = eval_expr(&dma.object, ctx)?;
+            let property = eval_expr(&dma.property, ctx)?;
+
+            access_member(&object, &property)
+        }
+        Function(function) => {
+            let value = Value::from(Closure {
+                name: function.id.to_owned().name,
+                expression: function.expression.to_owned(),
+                slots: function.slots.to_owned(),
+                scope_chain: ctx.export_scope_chain(),
+            });
+            ctx.add_var(&function.id, value.clone());
+            Ok(value)
+        }
+        Id(id) => ctx
+            .get_var(&id)
+            .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),
         IfElse(if_else) => {
             if eval_expr(&if_else.condition, ctx)?.as_boolean()? {
                 eval_expr(&if_else.then, ctx)
@@ -960,38 +955,43 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
                     .unwrap_or_else(|| Ok(Value::Void))
             }
         }
-        Id(id) => ctx
-            .get_var(&id)
-            .ok_or_else(|| Value::from(format!("ReferenceError: {} is not defined", id))),
-        VoidLiteral(_) => Ok(Value::Void),
-        NumberLiteral(number_literal) => Ok(Value::from(number_literal.value.to_owned())),
-        StringLiteral(string_literal) => Ok(Value::from(string_literal.value.to_owned())),
-        ListLiteral(list_literal) => {
-            let results: Result<Vec<Value>, Value> = list_literal
-                .values
-                .iter()
-                .map(|expr| eval_expr(expr, ctx))
-                .collect();
-
-            results.map(Value::from)
-        }
-        BooleanLiteral(boolean_literal) => Ok(Value::from(boolean_literal.value)),
-        Function(function) => {
-            let value = Value::from(Closure {
-                name: function.id.to_owned().name,
-                expression: function.expression.to_owned(),
-                slots: function.slots.to_owned(),
-                scope_chain: ctx.export_scope_chain(),
-            });
-            ctx.add_var(&function.id, value.clone());
-            Ok(value)
-        }
         Lambda(function) => Ok(Value::from(Closure {
             name: "anonymous".to_owned(),
             expression: function.expression.to_owned(),
             slots: function.slots.to_owned(),
             scope_chain: ctx.export_scope_chain(),
         })),
+        ListLiteral(list_literal) => {
+            let results: Result<Vec<Value>, Value> = list_literal
+            .values
+            .iter()
+            .map(|expr| eval_expr(expr, ctx))
+            .collect();
+
+            results.map(Value::from)
+        }
+        MemberAccess(member_access) => {
+            let object = eval_expr(&member_access.object, ctx)?;
+            let property = Value::from(member_access.property.name.to_string());
+
+            access_member(&object, &property)
+        }
+        NumberLiteral(number_literal) => Ok(Value::from(number_literal.value.to_owned())),
+        StringLiteral(string_literal) => Ok(Value::from(string_literal.value.to_owned())),
+        Unary(unary) => {
+            use ast::UnaryOperator::*;
+
+            let expr = eval_expr(&unary.expr, ctx)?;
+
+            let value = match unary.op {
+                Not => Value::from(!expr.as_boolean()?),
+                Neg => Value::from(-expr.as_number()?),
+                Pos => Value::from(expr.as_number()?),
+            };
+
+            Ok(value)
+        }
+        VoidLiteral(_) => Ok(Value::Void),
     }
 }
 
