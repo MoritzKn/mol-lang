@@ -15,19 +15,20 @@ impl Display for Program {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Binary(Box<Binary>),
+    Bind(Box<Bind>),
     Block(Box<Block>),
-    IfElse(Box<IfElse>),
     BooleanLiteral(Box<BooleanLiteral>),
     Call(Box<Call>),
     Declaration(Box<Declaration>),
+    DynamicMemberAccess(Box<DynamicMemberAccess>),
     Function(Box<Function>),
     Id(Box<Id>),
+    IfElse(Box<IfElse>),
     Lambda(Box<Lambda>),
+    ListLiteral(Box<ListLiteral>),
     MemberAccess(Box<MemberAccess>),
-    Bind(Box<Bind>),
     NumberLiteral(Box<NumberLiteral>),
     StringLiteral(Box<StringLiteral>),
-    ListLiteral(Box<ListLiteral>),
     Unary(Box<Unary>),
     VoidLiteral(Box<VoidLiteral>),
 }
@@ -36,19 +37,20 @@ impl Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expression::Binary(ast) => write!(f, "{}", ast),
+            Expression::Bind(ast) => write!(f, "{}", ast),
             Expression::Block(ast) => write!(f, "{}", ast),
-            Expression::IfElse(ast) => write!(f, "{}", ast),
             Expression::BooleanLiteral(ast) => write!(f, "{}", ast),
             Expression::Call(ast) => write!(f, "{}", ast),
             Expression::Declaration(ast) => write!(f, "{}", ast),
+            Expression::DynamicMemberAccess(ast) => write!(f, "{}", ast),
             Expression::Function(ast) => write!(f, "{}", ast),
             Expression::Id(ast) => write!(f, "{}", ast),
+            Expression::IfElse(ast) => write!(f, "{}", ast),
             Expression::Lambda(ast) => write!(f, "{}", ast),
+            Expression::ListLiteral(ast) => write!(f, "{}", ast),
             Expression::MemberAccess(ast) => write!(f, "{}", ast),
-            Expression::Bind(ast) => write!(f, "{}", ast),
             Expression::NumberLiteral(ast) => write!(f, "{}", ast),
             Expression::StringLiteral(ast) => write!(f, "{}", ast),
-            Expression::ListLiteral(ast) => write!(f, "{}", ast),
             Expression::Unary(ast) => write!(f, "{}", ast),
             Expression::VoidLiteral(ast) => write!(f, "{}", ast),
         }
@@ -232,6 +234,18 @@ impl Display for Declaration {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct DynamicMemberAccess {
+    pub object: Expression,
+    pub property: Expression,
+}
+
+impl Display for DynamicMemberAccess {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}[{}]", self.object, self.property)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Id {
     pub name: String,
 }
@@ -378,6 +392,9 @@ pub mod build {
     }
     pub fn expr_declaration(declaration: Declaration) -> Expression {
         Expression::Declaration(Box::new(declaration))
+    }
+    pub fn expr_dynamic_member_access(dma: DynamicMemberAccess) -> Expression {
+        Expression::DynamicMemberAccess(Box::new(dma))
     }
     pub fn expr_id(id: Id) -> Expression {
         Expression::Id(Box::new(id))
@@ -563,6 +580,13 @@ pub mod build {
     }
     pub fn declaration_expr(id: Id, value: Expression) -> Expression {
         expr_declaration(declaration(id, value))
+    }
+
+    pub fn dynamic_member_access(object: Expression, property: Expression) -> DynamicMemberAccess {
+        DynamicMemberAccess { object, property }
+    }
+    pub fn dynamic_member_access_expr(object: Expression, property: Expression) -> Expression {
+        expr_dynamic_member_access(dynamic_member_access(object, property))
     }
 
     pub fn id(name: &str) -> Id {

@@ -1,7 +1,8 @@
-use crate::ast::{Bind, Call, Expression, Id, MemberAccess, Program};
+use crate::ast::{Bind, Call, DynamicMemberAccess, Expression, Id, MemberAccess, Program};
 
 enum ExpressionTail {
     MemberAccess(Id),
+    DynamicMemberAccess(Expression),
     Bind(Expression),
     Call(Vec<Expression>),
 }
@@ -13,6 +14,12 @@ impl ExpressionTail {
         match self {
             ExpressionTail::MemberAccess(property) => {
                 Expression::MemberAccess(Box::new(MemberAccess {
+                    object: expr,
+                    property,
+                }))
+            }
+            ExpressionTail::DynamicMemberAccess(property) => {
+                Expression::DynamicMemberAccess(Box::new(DynamicMemberAccess {
                     object: expr,
                     property,
                 }))
@@ -60,6 +67,17 @@ mod tests {
         let ast = program(vec![call_expr(
             member_access_expr(id_expr("test"), id("foo")),
             vec![],
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn dynamic_member_access() {
+        let result = parse_string(r#"test[foo]"#).unwrap();
+        let ast = program(vec![dynamic_member_access_expr(
+            id_expr("test"),
+            id_expr("foo"),
         )]);
 
         assert_eq!(result, ast);

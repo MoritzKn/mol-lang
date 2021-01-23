@@ -741,15 +741,15 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
             Ok(value)
         }
         MemberAccess(member_access) => {
-            let prop = &member_access.property.name;
             let object = eval_expr(&member_access.object, ctx)?;
+            let prop = &member_access.property.name;
 
             match object {
                 Value::Map(map) => Ok(map.get(prop).cloned().unwrap_or_default()),
                 _ => Err(Value::from(format!(
                     "TypeError: Can not access property '{}' of {}",
                     prop,
-                    object.inspect()
+                    object.get_type()
                 ))),
             }
         }
@@ -777,6 +777,23 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
             let value = eval_expr(&declaration.value, ctx)?;
             ctx.set_var(&declaration.id, value.clone());
             Ok(value)
+        }
+        DynamicMemberAccess(dma) => {
+            let object = eval_expr(&dma.object, ctx)?;
+            let prop = eval_expr(&dma.property, ctx)?;
+
+            match object {
+                Value::Map(map) => Ok(map.get(&prop.to_string()).cloned().unwrap_or_default()),
+                Value::List(list) => Ok(list
+                    .get(prop.as_number()? as usize)
+                    .cloned()
+                    .unwrap_or_default()),
+                _ => Err(Value::from(format!(
+                    "TypeError: Can not access property '{}' of {}",
+                    prop,
+                    object.get_type()
+                ))),
+            }
         }
         Block(block) => eval_expr_list(&block.body, ctx),
         IfElse(if_else) => {
@@ -1046,5 +1063,35 @@ mod tests {
         let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::from(4));
+    }
+
+    #[test]
+    fn test_dynamic_member_access() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("math['sum'](1, 2)").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(3));
+    }
+
+    #[test]
+    fn test_list_index_access() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("[1, 2, 3][2]").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(3));
+    }
+
+    #[test]
+    fn test_list_index_access_nested() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("[1, [2, 3]][1][1]").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(3));
     }
 }

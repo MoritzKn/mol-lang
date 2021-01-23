@@ -48,6 +48,7 @@ access_expr -> Expression
 
 access_expr_tail -> ExpressionTail
     = __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
+    / __ "[" __ expr:expr __ "]" __ { ExpressionTail::DynamicMemberAccess(expr) }
 
 call_expr -> Expression
     = head:atom_expr tail:expr_tail* {

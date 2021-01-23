@@ -15,6 +15,7 @@
 - [x] Loops
 - [x] bind operator
 - [ ] Throw / Catch
+- [x] Array access
 - [ ] mutable state
 
 ## Docs
