@@ -319,6 +319,17 @@ mod tests {
     }
 
     #[test]
+    fn test_bind_member_access() {
+        let result = parse_string(r#"foo:bar.baz"#).unwrap();
+        let ast = program(vec![bind_expr(
+            id_expr("foo"),
+            member_access_expr(id_expr("bar"), id("baz")),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
     fn test_dobble_bind_call() {
         let result = parse_string(r#"foo:bar:baz()"#).unwrap();
         let ast = program(vec![call_expr(

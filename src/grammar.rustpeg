@@ -41,17 +41,23 @@ prefix_expr -> Expression
     / "-" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
     / call_expr
 
+access_expr -> Expression
+    = head:atom_expr tail:access_expr_tail* {
+        tail.into_iter().fold(head, |full, part| part.prepend(full))
+    }
+
+access_expr_tail -> ExpressionTail
+    = __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
+
 call_expr -> Expression
     = head:atom_expr tail:expr_tail* {
-        let mut full = head;
-        for part in tail { full = part.prepend(full) }
-        full
+        tail.into_iter().fold(head, |full, part| part.prepend(full))
     }
 
 expr_tail -> ExpressionTail
-    = __ "(" __ args:expr_list __ ")" __ { ExpressionTail::Call(args) }
-    / __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
-    / __ ":" __ method:atom_expr __ { ExpressionTail::Bind(method) }
+    = tail:access_expr_tail { tail }
+    / __ "(" __ args:expr_list __ ")" __ { ExpressionTail::Call(args) }
+    / __ ":" __ method:access_expr __ { ExpressionTail::Bind(method) }
 
 atom_expr -> Expression
     = "(" __ expr:expr __ ")" { expr }
