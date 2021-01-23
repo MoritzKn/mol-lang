@@ -26,7 +26,7 @@ impl Completer for RlHelper {
         let prefix = &line[..pos];
 
         // Split off last word
-        let parts = prefix.split(" ").collect::<Vec<&str>>();
+        let parts = prefix.split(' ').collect::<Vec<&str>>();
         let prefix = if parts.len() > 1 {
             *parts.last().unwrap()
         } else {
@@ -34,14 +34,14 @@ impl Completer for RlHelper {
         };
 
         // Split off last bind
-        let parts = prefix.split(":").collect::<Vec<&str>>();
+        let parts = prefix.split(':').collect::<Vec<&str>>();
         let prefix = if parts.len() > 1 {
             *parts.last().unwrap()
         } else {
             prefix
         };
 
-        let parts = prefix.split(".").collect::<Vec<&str>>();
+        let parts = prefix.split('.').collect::<Vec<&str>>();
 
         // Case 1: no member access
         if parts.len() == 1 {
@@ -93,7 +93,7 @@ impl Completer for RlHelper {
                     .filter(|var| prefix_len <= var.len() && &var[..prefix_len] == *prefix)
                     .map(|key| Pair {
                         display: key.clone(),
-                        replacement: key.clone(),
+                        replacement: key,
                     })
                     .collect::<Vec<Pair>>();
 

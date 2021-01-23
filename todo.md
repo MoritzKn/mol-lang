@@ -16,7 +16,7 @@
 - [x] bind operator
 - [ ] Throw / Catch
 - [x] Array access
-- [ ] mutable state
+- [x] mutable state
 
 ## Docs
 

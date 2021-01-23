@@ -14,6 +14,7 @@ impl Display for Program {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
+    Assignment(Box<Assignment>),
     Binary(Box<Binary>),
     Bind(Box<Bind>),
     Block(Box<Block>),
@@ -33,9 +34,20 @@ pub enum Expression {
     VoidLiteral(Box<VoidLiteral>),
 }
 
+impl From<AccessExpression> for Expression {
+    fn from(ae: AccessExpression) -> Expression {
+        match ae {
+            AccessExpression::DynamicMemberAccess(ast) => Expression::DynamicMemberAccess(ast),
+            AccessExpression::Id(ast) => Expression::Id(ast),
+            AccessExpression::MemberAccess(ast) => Expression::MemberAccess(ast),
+        }
+    }
+}
+
 impl Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Expression::Assignment(ast) => write!(f, "{}", ast),
             Expression::Binary(ast) => write!(f, "{}", ast),
             Expression::Bind(ast) => write!(f, "{}", ast),
             Expression::Block(ast) => write!(f, "{}", ast),
@@ -54,6 +66,35 @@ impl Display for Expression {
             Expression::Unary(ast) => write!(f, "{}", ast),
             Expression::VoidLiteral(ast) => write!(f, "{}", ast),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum AccessExpression {
+    DynamicMemberAccess(Box<DynamicMemberAccess>),
+    Id(Box<Id>),
+    MemberAccess(Box<MemberAccess>),
+}
+
+impl Display for AccessExpression {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AccessExpression::DynamicMemberAccess(ast) => write!(f, "{}", ast),
+            AccessExpression::Id(ast) => write!(f, "{}", ast),
+            AccessExpression::MemberAccess(ast) => write!(f, "{}", ast),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Assignment {
+    pub var: AccessExpression,
+    pub value: Expression,
+}
+
+impl Display for Assignment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{} = {}", self.var, self.value)
     }
 }
 
@@ -375,6 +416,9 @@ pub mod build {
     }
 
     // --- Expression Variants --- //
+    pub fn expr_assignment(assignment: Assignment) -> Expression {
+        Expression::Assignment(Box::new(assignment))
+    }
     pub fn expr_block(block: Block) -> Expression {
         Expression::Block(Box::new(block))
     }
@@ -425,6 +469,18 @@ pub mod build {
     }
     pub fn expr_unary(uary: Unary) -> Expression {
         Expression::Unary(Box::new(uary))
+    }
+
+    // --- AccessExpression Variants --- //
+
+    pub fn access_expr_member_access(member_access: MemberAccess) -> AccessExpression {
+        AccessExpression::MemberAccess(Box::new(member_access))
+    }
+    pub fn access_expr_dynamic_member_access(dma: DynamicMemberAccess) -> AccessExpression {
+        AccessExpression::DynamicMemberAccess(Box::new(dma))
+    }
+    pub fn access_expr_id(id: Id) -> AccessExpression {
+        AccessExpression::Id(Box::new(id))
     }
 
     // --- BinaryOperator Variants --- //
@@ -532,6 +588,13 @@ pub mod build {
     }
 
     // --- Other Expressions --- //
+    pub fn assignment(var: AccessExpression, value: Expression) -> Assignment {
+        Assignment { var, value }
+    }
+    pub fn assignment_expr(var: AccessExpression, value: Expression) -> Expression {
+        Expression::Assignment(Box::new(assignment(var, value)))
+    }
+
     pub fn block(body: Vec<Expression>) -> Block {
         Block { body }
     }
@@ -567,6 +630,9 @@ pub mod build {
     pub fn member_access_expr(object: Expression, property: Id) -> Expression {
         expr_member_access(member_access(object, property))
     }
+    pub fn member_access_access_expr(object: Expression, property: Id) -> AccessExpression {
+        access_expr_member_access(member_access(object, property))
+    }
 
     pub fn bind(object: Expression, method: Expression) -> Bind {
         Bind { object, method }
@@ -588,6 +654,12 @@ pub mod build {
     pub fn dynamic_member_access_expr(object: Expression, property: Expression) -> Expression {
         expr_dynamic_member_access(dynamic_member_access(object, property))
     }
+    pub fn dynamic_member_access_access_expr(
+        object: Expression,
+        property: Expression,
+    ) -> AccessExpression {
+        access_expr_dynamic_member_access(dynamic_member_access(object, property))
+    }
 
     pub fn id(name: &str) -> Id {
         Id {
@@ -596,6 +668,9 @@ pub mod build {
     }
     pub fn id_expr(name: &str) -> Expression {
         expr_id(id(name))
+    }
+    pub fn id_access_expr(name: &str) -> AccessExpression {
+        access_expr_id(id(name))
     }
 
     pub fn slot(name: &str, ty: &str) -> Slot {

@@ -1,5 +1,8 @@
-use crate::ast::{Bind, Call, DynamicMemberAccess, Expression, Id, MemberAccess, Program};
+use crate::ast::{
+    AccessExpression, Bind, Call, DynamicMemberAccess, Expression, Id, MemberAccess, Program,
+};
 
+#[derive(Debug, Clone, PartialEq)]
 enum ExpressionTail {
     MemberAccess(Id),
     DynamicMemberAccess(Expression),
@@ -36,6 +39,43 @@ impl ExpressionTail {
     }
 }
 
+impl From<AccessExpressionTail> for ExpressionTail {
+    fn from(aet: AccessExpressionTail) -> ExpressionTail {
+        use AccessExpressionTail::*;
+        match aet {
+            MemberAccess(id) => ExpressionTail::MemberAccess(id),
+            DynamicMemberAccess(expression) => ExpressionTail::DynamicMemberAccess(expression),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum AccessExpressionTail {
+    MemberAccess(Id),
+    DynamicMemberAccess(Expression),
+}
+
+impl AccessExpressionTail {
+    // NOTE: Usage in grammar not recognised
+    #![allow(dead_code)]
+    pub fn prepend(self, expr: Expression) -> AccessExpression {
+        match self {
+            AccessExpressionTail::MemberAccess(property) => {
+                AccessExpression::MemberAccess(Box::new(MemberAccess {
+                    object: expr,
+                    property,
+                }))
+            }
+            AccessExpressionTail::DynamicMemberAccess(property) => {
+                AccessExpression::DynamicMemberAccess(Box::new(DynamicMemberAccess {
+                    object: expr,
+                    property,
+                }))
+            }
+        }
+    }
+}
+
 mod grammar {
     #![allow(warnings, clippy::all)]
     include!(concat!(env!("OUT_DIR"), "/grammar.rs"));
@@ -52,6 +92,75 @@ mod tests {
     use super::parse_string;
     use crate::ast::build::*;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_var_assignment() {
+        let result = parse_string(r#"foo = bar"#).unwrap();
+        let ast = program(vec![assignment_expr(id_access_expr("foo"), id_expr("bar"))]);
+
+        assert_eq!(result, ast);
+    }
+
+    // TOOD: Without sharing by reference deep assignment makes no sense
+    // #[test]
+    // fn test_var_assignment_member_access() {
+    //     let result = parse_string(r#"foo.bar = baz"#).unwrap();
+    //     let ast = program(vec![assignment_expr(
+    //         member_access_access_expr(id_expr("foo"), id("bar")),
+    //         id_expr("baz"),
+    //     )]);
+    //
+    //     assert_eq!(result, ast);
+    // }
+    //
+    // #[test]
+    // fn test_var_assignment_dynamic_member_access() {
+    //     let result = parse_string(r#"foo[12] = baz"#).unwrap();
+    //     let ast = program(vec![assignment_expr(
+    //         dynamic_member_access_access_expr(id_expr("foo"), number_literal_expr(12.0)),
+    //         id_expr("baz"),
+    //     )]);
+    //
+    //     assert_eq!(result, ast);
+    // }
+    //
+    // #[test]
+    // fn test_var_assignment_call() {
+    //     let result = parse_string(r#"foo().bar = baz"#).unwrap();
+    //     let ast = program(vec![assignment_expr(
+    //         member_access_access_expr(call_expr(id_expr("foo"), vec![]), id("bar")),
+    //         id_expr("baz"),
+    //     )]);
+    //
+    //     assert_eq!(result, ast);
+    // }
+
+    #[test]
+    fn test_var_assignment_nested() {
+        let result = parse_string(r#"foo = bar = baz"#).unwrap();
+        let ast = program(vec![assignment_expr(
+            id_access_expr("foo"),
+            assignment_expr(id_access_expr("bar"), id_expr("baz")),
+        )]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_var_assignment_invalid_left_hand() {
+        let result = parse_string(r#"123 = baz"#);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_var_assignment_invalid_left_hand_call() {
+        // ES allows this and after implementing the god damn parser I know why....
+        // But for now we don't allow this and it saves us this logic in the interpreter.
+        let result = parse_string(r#"foo() = baz"#);
+
+        assert!(result.is_err());
+    }
 
     #[test]
     fn test_id() {
@@ -124,13 +233,6 @@ mod tests {
     #[test]
     fn test_declaration_invalid_identifier() {
         let result = parse_string(r#"let let = bar.baz"#);
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_declaration_no_space_after_keyword() {
-        let result = parse_string(r#"letfoo = bar.baz"#);
 
         assert!(result.is_err());
     }

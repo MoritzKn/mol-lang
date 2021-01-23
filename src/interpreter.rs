@@ -8,13 +8,11 @@ type ScopeRef = Arc<Mutex<Scope>>;
 type ScopeRefWeak = Weak<Mutex<Scope>>;
 
 #[cfg(debug_assertions)]
-fn inspect_scope_chain(chain: &[ScopeRef]) -> Value {
-    Value::from(
-        chain
-            .iter()
-            .map(|scope| scope.lock().unwrap().export_as_value())
-            .collect::<Vec<Value>>(),
-    )
+fn inspect_scope_chain(chain: &[ScopeRef]) -> Vec<Value> {
+    chain
+        .iter()
+        .map(|scope| scope.lock().unwrap().export_as_value())
+        .collect::<Vec<Value>>()
 }
 
 #[cfg(debug_assertions)]
@@ -27,14 +25,12 @@ pub fn inspect_scope_chain_binding(args: Vec<Value>, _ctx: &mut Context) -> Resu
     match arg {
         Value::Function(func) => match func {
             Function::Closure(closue) => Ok(Value::from(inspect_scope_chain(&closue.scope_chain))),
-            _ => Err(Value::from(
-                "TypeError: Only closure functions have a scope chain",
-            )),
+            _ => throw("TypeError: Only closure functions have a scope chain"),
         },
-        _ => Err(Value::from(format!(
+        _ => throw(format!(
             "TypeError: Expected function but got {}",
             arg.get_type()
-        ))),
+        )),
     }
 }
 
@@ -46,16 +42,14 @@ fn inspect_scope(scope: &ScopeRef) -> Value {
 
 #[cfg(debug_assertions)]
 pub fn inspect_scope_binding(_args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
-    Ok(Value::from(inspect_scope(
-        &ctx.current.lock().unwrap().scope,
-    )))
+    Ok(inspect_scope(&ctx.current.lock().unwrap().scope))
 }
 
 pub fn install_stdlib(frame: &mut Frame) {
     use crate::stdlib as lib;
 
     fn register<V: Into<Value>>(frame: &mut Frame, name: &str, value: V) {
-        frame.set_var(name.to_owned(), value.into());
+        frame.add_var(name.to_owned(), value.into());
     }
 
     fn register_in_ns<V: Into<Value>>(ns: &mut HashMap<String, Value>, name: &str, value: V) {
@@ -65,7 +59,7 @@ pub fn install_stdlib(frame: &mut Frame) {
     fn namespace(frame: &mut Frame, name: &str, factory: fn(&mut HashMap<String, Value>)) {
         let mut ns: HashMap<String, Value> = HashMap::new();
         factory(&mut ns);
-        frame.set_var(name.to_owned(), ns.into());
+        frame.add_var(name.to_owned(), ns.into());
     }
 
     register::<NativeFunctionDef>(frame, "typeof", ("typeof", lib::type_of));
@@ -197,6 +191,10 @@ impl Display for Function {
     }
 }
 
+fn throw<T: Into<Value>>(v: T) -> Result<Value, Value> {
+    Err(v.into())
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Void,
@@ -240,8 +238,8 @@ impl Value {
             Value::String(value) => format!("\"{}\"", value).green(),
             Value::Boolean(value) => format!("{}", value).yellow(),
             Value::List(value) => {
-                if value.len() == 0 {
-                    format!("[]").normal()
+                if value.is_empty() {
+                    "[]".to_string().normal()
                 } else {
                     format!(
                         "[\n{}\n{}]",
@@ -315,6 +313,18 @@ impl Value {
 
             // TODO: Implement equal for complex types
             Value::Function(_) | Value::Map(_) | Value::List(_) => false,
+        }
+    }
+
+    pub fn matches_type(&self, other: &Value) -> bool {
+        match self {
+            Value::Void => matches!(other, Value::Void),
+            Value::Number(_) => matches!(other, Value::Number(_)),
+            Value::String(_) => matches!(other, Value::String(_)),
+            Value::Boolean(_) => matches!(other, Value::Boolean(_)),
+            Value::Function(_) => matches!(other, Value::Function(_)),
+            Value::Map(_) => matches!(other, Value::Map(_)),
+            Value::List(_) => matches!(other, Value::List(_)),
         }
     }
 }
@@ -534,18 +544,22 @@ impl Frame {
         }
     }
 
-    fn get_var(&self, name: &str) -> Option<Value> {
-        let value = {
-            let scope = self.scope.lock().unwrap();
-
-            scope.get(name)
-        };
-
-        if value.is_some() {
-            return value;
+    fn extending(below: &Self) -> Self {
+        Self {
+            scope: Arc::new(Mutex::new(Scope::new())),
+            scope_chain: below.full_chain_iter().collect::<Vec<ScopeRefWeak>>(),
         }
+    }
 
-        for scope in self.scope_chain.iter().rev() {
+    fn full_chain_iter(&self) -> impl DoubleEndedIterator<Item = ScopeRefWeak> + '_ {
+        self.scope_chain
+            .iter()
+            .cloned()
+            .chain(std::iter::once(Arc::downgrade(&self.scope)))
+    }
+
+    fn get_var(&self, name: &str) -> Option<Value> {
+        for scope in self.full_chain_iter().rev() {
             let scope = scope.upgrade().expect("Scope already dropped");
             let scope = scope.lock().unwrap();
             let value = scope.get(name);
@@ -558,29 +572,48 @@ impl Frame {
         None
     }
 
-    /// Gets all variables form all scopes as a list of list
+    /// Gets all variables form all scopes as a list of list (top to bottom)
     fn list_vars(&self) -> Vec<Vec<String>> {
-        let list = {
-            let scope = self.scope.lock().unwrap();
-            scope.list()
-        };
+        self.full_chain_iter()
+            .rev()
+            .map(|scope| {
+                let scope = scope.upgrade().expect("Scope already dropped");
+                let scope = scope.lock().unwrap();
 
-        let mut all = vec![list];
-
-        for scope in self.scope_chain.iter().rev() {
-            let scope = scope.upgrade().expect("Scope already dropped");
-            let scope = scope.lock().unwrap();
-            let list = scope.list();
-
-            all.push(list)
-        }
-
-        all
+                scope.list()
+            })
+            .collect()
     }
 
-    fn set_var(&mut self, name: String, value: Value) {
+    fn add_var(&mut self, name: String, value: Value) {
         let mut scope = self.scope.lock().unwrap();
         scope.set(name, value);
+    }
+
+    fn set_var(&mut self, name: String, value: Value) -> Result<Value, Value> {
+        for scope in self.full_chain_iter().rev() {
+            let scope = scope.upgrade().expect("Scope already dropped");
+            let mut scope = scope.lock().unwrap();
+
+            if let Some(old) = scope.get(&name) {
+                if !old.matches_type(&value) {
+                    throw(format!(
+                        "TypeError: Can not assign {} to {}",
+                        value.get_type(),
+                        old.get_type(),
+                    ))?
+                } else {
+                    scope.set(name, value.clone());
+
+                    return Ok(value);
+                };
+            }
+        }
+
+        throw(format!(
+            "TypeError: Assignment of undeclared variable {}",
+            name
+        ))
     }
 }
 
@@ -616,7 +649,11 @@ impl Context {
         self.current.lock().unwrap().list_vars()
     }
 
-    fn set_var(&mut self, id: &ast::Id, value: Value) {
+    fn add_var(&mut self, id: &ast::Id, value: Value) {
+        self.current.lock().unwrap().add_var(id.name.clone(), value)
+    }
+
+    fn set_var(&mut self, id: &ast::Id, value: Value) -> Result<Value, Value> {
         self.current.lock().unwrap().set_var(id.name.clone(), value)
     }
 
@@ -660,7 +697,7 @@ fn call_func(func: &Function, mut args: Vec<Value>, ctx: &mut Context) -> Result
 
             for (i, arg) in args.drain(..).enumerate() {
                 if i < closure.slots.len() {
-                    ctx.set_var(&closure.slots[i].id, arg);
+                    ctx.add_var(&closure.slots[i].id, arg);
                 } else {
                     break;
                 }
@@ -687,18 +724,24 @@ pub fn call_value(callee: &Value, args: Vec<Value>, ctx: &mut Context) -> Result
     match callee {
         Value::Function(func) => call_func(func, args, ctx),
 
-        _ => Err(Value::from(format!(
-            "TypeError: {} is not a function",
-            callee.inspect()
-        ))),
+        _ => throw(format!("TypeError: {} is not a function", callee.inspect())),
     }
 }
 
 pub fn access_member(object: &Value, property: &Value) -> Result<Value, Value> {
     match object {
-        Value::Map(map) => return Ok(map.get(&property.to_string()).cloned().unwrap_or_default()),
+        Value::Map(map) => {
+            let value = if let Value::String(name) = property {
+                // don't clone if we can get a ref
+                map.get(name)
+            } else {
+                map.get(&property.to_string())
+            };
+
+            return Ok(value.cloned().unwrap_or_default());
+        }
         Value::List(list) => {
-            if let Value::String(name) = property {
+            if let Value::String(name) = &property {
                 if name == "length" {
                     return Ok(Value::from(list.len()));
                 }
@@ -726,11 +769,36 @@ pub fn access_member(object: &Value, property: &Value) -> Result<Value, Value> {
         _ => {}
     };
 
-    Err(Value::from(format!(
+    throw(format!(
         "TypeError: Can not access property '{}' of {}",
         property,
         object.get_type()
-    )))
+    ))
+}
+
+pub fn set_member(object: &mut Value, property: &Value, value: Value) -> Result<Value, Value> {
+    match object {
+        Value::Map(map) => {
+            map.insert(property.to_string(), value.clone());
+
+            Ok(value)
+        }
+        Value::List(list) => {
+            let index = property.as_number()? as usize;
+            if index >= list.len() {
+                println!("resize");
+                list.resize(index + 1, Value::Void)
+            }
+            list.insert(index, value.clone());
+
+            Ok(value)
+        }
+        _ => throw(format!(
+            "TypeError: Can not set property '{}' of {}",
+            property,
+            object.get_type()
+        )),
+    }
 }
 
 fn eval_expr_list(expr_list: &[ast::Expression], ctx: &mut Context) -> Result<Value, Value> {
@@ -745,6 +813,31 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
     use ast::Expression::*;
 
     match expr {
+        Assignment(assignment) => {
+            use ast::AccessExpression;
+
+            match &assignment.var {
+                AccessExpression::Id(id) => {
+                    let value = eval_expr(&assignment.value, ctx)?;
+
+                    ctx.set_var(id.as_ref(), value.clone())
+                }
+                AccessExpression::MemberAccess(ma) => {
+                    let mut object = eval_expr(&ma.object, ctx)?;
+                    let property = Value::from(ma.property.name.to_string());
+                    let value = eval_expr(&assignment.value, ctx)?;
+
+                    set_member(&mut object, &property, value)
+                }
+                AccessExpression::DynamicMemberAccess(dma) => {
+                    let mut object = eval_expr(&dma.object, ctx)?;
+                    let property = eval_expr(&dma.property, ctx)?;
+                    let value = eval_expr(&assignment.value, ctx)?;
+
+                    set_member(&mut object, &property, value)
+                }
+            }
+        }
         Call(call) => {
             let callee = eval_expr(&call.callee, ctx)?;
 
@@ -806,7 +899,7 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
         }
         MemberAccess(member_access) => {
             let object = eval_expr(&member_access.object, ctx)?;
-            let property = Value::from(member_access.property.name.to_owned());
+            let property = Value::from(member_access.property.name.to_string());
 
             access_member(&object, &property)
         }
@@ -824,15 +917,15 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
                         name,
                     }))
                 }
-                _ => Err(Value::from(format!(
-                    "TypeError: Can not bind non function {}",
+                _ => throw(format!(
+                    "TypeError: Bind expects function, got {}",
                     method.get_type()
-                ))),
+                )),
             }
         }
         Declaration(declaration) => {
             let value = eval_expr(&declaration.value, ctx)?;
-            ctx.set_var(&declaration.id, value.clone());
+            ctx.add_var(&declaration.id, value.clone());
             Ok(value)
         }
         DynamicMemberAccess(dma) => {
@@ -841,7 +934,21 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
 
             access_member(&object, &property)
         }
-        Block(block) => eval_expr_list(&block.body, ctx),
+        Block(block) => {
+            let frame = {
+                let current_frame = ctx.current.lock().unwrap();
+                Frame::extending(&current_frame)
+            };
+            let frame = Arc::new(Mutex::new(frame));
+
+            ctx.push_stack(frame);
+
+            let result = eval_expr_list(&block.body, ctx);
+
+            ctx.pop_stack();
+
+            result
+        }
         IfElse(if_else) => {
             if eval_expr(&if_else.condition, ctx)?.as_boolean()? {
                 eval_expr(&if_else.then, ctx)
@@ -876,7 +983,7 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
                 slots: function.slots.to_owned(),
                 scope_chain: ctx.export_scope_chain(),
             });
-            ctx.set_var(&function.id, value.clone());
+            ctx.add_var(&function.id, value.clone());
             Ok(value)
         }
         Lambda(function) => Ok(Value::from(Closure {
@@ -919,6 +1026,79 @@ mod tests {
     }
 
     #[test]
+    fn test_var_assignment() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let foo = 1").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(1.0));
+
+        let ast = parser::parse_string("foo = 2").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(2.0));
+    }
+
+    #[test]
+    fn test_var_assignment_without_declaration() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("foo = 2").unwrap();
+        let result = exec_with_context(&ast, &mut ctx);
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_var_assignment_of_var_from_other_scope() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let foo = 1").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(1.0));
+
+        let ast = parser::parse_string("{ foo = 2 }").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(2.0));
+    }
+
+    #[test]
+    fn test_var_assignment_of_var_from_captured_scope() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let foo = 1").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(1.0));
+
+        let ast = parser::parse_string("let f = () => { foo = 4 }; f(); foo").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(4.0));
+    }
+
+    #[test]
+    fn test_var_assignment_type_invariance() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let foo = 1").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::Number(1.0));
+
+        let ast = parser::parse_string("foo = 'hallo'").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).err().unwrap();
+
+        assert_eq!(
+            result,
+            Value::from("TypeError: Can not assign String to Number")
+        );
+    }
+
+    #[test]
     fn test_function_def_and_call() {
         let mut ctx = Context::new();
 
@@ -931,6 +1111,36 @@ mod tests {
         let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::Number(2.0));
+    }
+
+    #[test]
+    fn test_redeclare_var_in_new_block() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("let foo = 12; { let foo = 0 }; foo").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(12.0));
+    }
+
+    #[test]
+    fn test_access_var_captured_from_droped_scoped() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("function mkFoo() { let value = 12; () => value }").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("let foo = mkFoo()").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result.get_type(), "Function");
+
+        let ast = parser::parse_string("foo()").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(12.0));
     }
 
     #[test]

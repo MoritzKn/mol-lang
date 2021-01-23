@@ -1,5 +1,5 @@
 use crate::ast::*;
-use super::ExpressionTail;
+use super::{ExpressionTail, AccessExpressionTail};
 
 pub program -> Program
     = __ body:block_body __ { Program { body } }
@@ -12,6 +12,7 @@ stmt_seperator
 
 expr -> Expression
     = d:declaration { Expression::Declaration(Box::new(d)) }
+    / a:assignment { Expression::Assignment(Box::new(a)) }
     / i:if_else { Expression::IfElse(Box::new(i)) }
     / l:lambda { Expression::Lambda(Box::new(l)) }
     / bin_expr
@@ -42,21 +43,21 @@ prefix_expr -> Expression
     / call_expr
 
 access_expr -> Expression
-    = head:atom_expr tail:access_expr_tail* {
-        tail.into_iter().fold(head, |full, part| part.prepend(full))
+    = head:atom_expr tail:access_expr_tail_part* {
+        tail.into_iter().fold(head, |full, part| ExpressionTail::from(part).prepend(full))
     }
 
-access_expr_tail -> ExpressionTail
-    = __ "." __ property:id __ { ExpressionTail::MemberAccess(property) }
-    / __ "[" __ expr:expr __ "]" __ { ExpressionTail::DynamicMemberAccess(expr) }
+access_expr_tail_part -> AccessExpressionTail
+    = __ "." __ property:id __ { AccessExpressionTail::MemberAccess(property) }
+    / __ "[" __ expr:expr __ "]" __ { AccessExpressionTail::DynamicMemberAccess(expr) }
 
 call_expr -> Expression
-    = head:atom_expr tail:expr_tail* {
+    = head:atom_expr tail:expr_tail_part* {
         tail.into_iter().fold(head, |full, part| part.prepend(full))
     }
 
-expr_tail -> ExpressionTail
-    = tail:access_expr_tail { tail }
+expr_tail_part -> ExpressionTail
+    = tail:access_expr_tail_part { tail.into() }
     / __ "(" __ args:expr_list __ ")" __ { ExpressionTail::Call(args) }
     / __ ":" __ method:access_expr __ { ExpressionTail::Bind(method) }
 
@@ -76,6 +77,29 @@ expr_list -> Vec<Expression>
 
 declaration -> Declaration
     = keyword_let __ id:id __ "=" __ value:expr { Declaration{ id, value } }
+
+access_expr_tail -> (Vec<ExpressionTail>, AccessExpressionTail)
+    = tip:access_expr_tail_part { (vec![], tip) }
+    / part:access_expr_tail_part tail:access_expr_tail {
+        let (tail, tip) = tail;
+        ([vec![ExpressionTail::from(part)], tail].concat(), tip)
+    }
+    / part:expr_tail_part tail:access_expr_tail {
+        let (tail, tip) = tail;
+        ([vec![part], tail].concat(), tip)
+    }
+
+assignment_access -> AccessExpression
+    // TOOD: Well i forgot that everything is shared by value and therefore assigning into a object makes no sense at all...
+    = head:atom_expr tail:access_expr_tail {
+        let (tail, tip) = tail;
+        let front = tail.into_iter().fold(head, |full, part| part.prepend(full));
+        tip.prepend(front)
+    }
+    / id:id { AccessExpression::Id(Box::new(id)) }
+
+assignment -> Assignment
+    = var:assignment_access __ "=" __ value:expr { Assignment{ var, value } }
 
 if_else -> IfElse
     = keyword_if __ "(" __ condition:expr __ ")" __ then:expr other:if_else_branch? {
