@@ -64,6 +64,42 @@ pub fn map(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
         .map(Value::from)
 }
 
+pub fn filter(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    let mut iter = args.into_iter();
+
+    let list = iter
+        .next()
+        .ok_or_else(|| Value::from("TypeError: Expected two argument but got 0"))
+        .and_then(|v| match v {
+            Value::List(list) => Ok(list),
+            _ => Err(Value::from(format!(
+                "TypeError: Expected list but got {}",
+                v.get_type()
+            ))),
+        })?;
+
+    let callback = iter
+        .next()
+        .ok_or_else(|| Value::from("TypeError: Expected two argument but got 1"))
+        .and_then(|v| match v {
+            Value::Function(_) => Ok(v),
+            _ => Err(Value::from(format!(
+                "TypeError: Expected function but got {}",
+                v.get_type()
+            ))),
+        })?;
+
+    let mut out = vec![];
+    for item in list {
+        let res = call_value(&callback, vec![item.clone()], ctx)?.as_boolean()?;
+        if res {
+            out.push(item);
+        }
+    }
+
+    Ok(Value::from(out))
+}
+
 pub fn reduce(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
     let mut iter = args.into_iter();
 
@@ -99,12 +135,15 @@ pub fn reduce(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
 }
 
 pub fn concat(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
-    let list: Vec<Value> = args.into_iter().fold(vec![], |mut list, v| match v {
-        Value::List(list_in_arg) => [list, list_in_arg].concat(),
-        _ => {
-            list.push(v);
-            list
-        }
+    let list: Vec<Value> = args.into_iter().fold(vec![], |list, v| {
+        [
+            list,
+            match v {
+                Value::List(v) => v,
+                _ => vec![v],
+            },
+        ]
+        .concat()
     });
 
     Ok(Value::from(list))

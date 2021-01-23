@@ -86,6 +86,7 @@ pub fn install_stdlib(frame: &mut Frame) {
 
     register::<NativeFunctionDef>(frame, "map", ("map", lib::map));
     register::<NativeFunctionDef>(frame, "reduce", ("reduce", lib::reduce));
+    register::<NativeFunctionDef>(frame, "filter", ("filter", lib::filter));
     register::<NativeFunctionDef>(frame, "seq", ("seq", lib::seq));
     register::<NativeFunctionDef>(frame, "concat", ("concat", lib::concat));
 
@@ -375,8 +376,20 @@ impl From<f64> for Value {
     }
 }
 
+impl From<f32> for Value {
+    fn from(number: f32) -> Value {
+        Value::Number(number as f64)
+    }
+}
+
 impl From<isize> for Value {
     fn from(number: isize) -> Value {
+        Value::Number(number as f64)
+    }
+}
+
+impl From<usize> for Value {
+    fn from(number: usize) -> Value {
         Value::Number(number as f64)
     }
 }
@@ -389,6 +402,18 @@ impl From<i32> for Value {
 
 impl From<i64> for Value {
     fn from(number: i64) -> Value {
+        Value::Number(number as f64)
+    }
+}
+
+impl From<u32> for Value {
+    fn from(number: u32) -> Value {
+        Value::Number(number as f64)
+    }
+}
+
+impl From<u64> for Value {
+    fn from(number: u64) -> Value {
         Value::Number(number as f64)
     }
 }
@@ -669,6 +694,45 @@ pub fn call_value(callee: &Value, args: Vec<Value>, ctx: &mut Context) -> Result
     }
 }
 
+pub fn access_member(object: &Value, property: &Value) -> Result<Value, Value> {
+    match object {
+        Value::Map(map) => return Ok(map.get(&property.to_string()).cloned().unwrap_or_default()),
+        Value::List(list) => {
+            if let Value::String(name) = property {
+                if name == "length" {
+                    return Ok(Value::from(list.len()));
+                }
+            }
+
+            return Ok(list
+                .get(property.as_number()? as usize)
+                .cloned()
+                .unwrap_or_default());
+        }
+        Value::String(string) => {
+            if let Value::String(name) = &property {
+                if name == "length" {
+                    return Ok(Value::from(string.len()));
+                }
+            }
+        }
+        Value::Function(func) => {
+            if let Value::String(name) = &property {
+                if name == "name" {
+                    return Ok(Value::from(func.name()));
+                }
+            }
+        }
+        _ => {}
+    };
+
+    Err(Value::from(format!(
+        "TypeError: Can not access property '{}' of {}",
+        property,
+        object.get_type()
+    )))
+}
+
 fn eval_expr_list(expr_list: &[ast::Expression], ctx: &mut Context) -> Result<Value, Value> {
     let mut final_val = Value::Void;
     for expr in expr_list {
@@ -742,16 +806,9 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
         }
         MemberAccess(member_access) => {
             let object = eval_expr(&member_access.object, ctx)?;
-            let prop = &member_access.property.name;
+            let property = Value::from(member_access.property.name.to_owned());
 
-            match object {
-                Value::Map(map) => Ok(map.get(prop).cloned().unwrap_or_default()),
-                _ => Err(Value::from(format!(
-                    "TypeError: Can not access property '{}' of {}",
-                    prop,
-                    object.get_type()
-                ))),
-            }
+            access_member(&object, &property)
         }
         Bind(bind) => {
             let object = eval_expr(&bind.object, ctx)?;
@@ -780,27 +837,15 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
         }
         DynamicMemberAccess(dma) => {
             let object = eval_expr(&dma.object, ctx)?;
-            let prop = eval_expr(&dma.property, ctx)?;
+            let property = eval_expr(&dma.property, ctx)?;
 
-            match object {
-                Value::Map(map) => Ok(map.get(&prop.to_string()).cloned().unwrap_or_default()),
-                Value::List(list) => Ok(list
-                    .get(prop.as_number()? as usize)
-                    .cloned()
-                    .unwrap_or_default()),
-                _ => Err(Value::from(format!(
-                    "TypeError: Can not access property '{}' of {}",
-                    prop,
-                    object.get_type()
-                ))),
-            }
+            access_member(&object, &property)
         }
         Block(block) => eval_expr_list(&block.body, ctx),
         IfElse(if_else) => {
             if eval_expr(&if_else.condition, ctx)?.as_boolean()? {
                 eval_expr(&if_else.then, ctx)
             } else {
-                // TODO: Change this to None when we get Optionals
                 if_else
                     .r#else
                     .as_ref()
@@ -1093,5 +1138,35 @@ mod tests {
         let result = exec_with_context(&ast, &mut ctx).unwrap();
 
         assert_eq!(result, Value::from(3));
+    }
+
+    #[test]
+    fn test_list_length() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("[1, 2].length").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(2));
+    }
+
+    #[test]
+    fn test_string_length() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("'foo'.length").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from(3));
+    }
+
+    #[test]
+    fn test_function_name() {
+        let mut ctx = Context::new();
+
+        let ast = parser::parse_string("function test(){}.name").unwrap();
+        let result = exec_with_context(&ast, &mut ctx).unwrap();
+
+        assert_eq!(result, Value::from("test"));
     }
 }

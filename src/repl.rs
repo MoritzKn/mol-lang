@@ -75,21 +75,29 @@ impl Completer for RlHelper {
             });
 
             if let Some(value) = result {
-                if let interpreter::Value::Map(map) = value {
-                    let prefix = parts.last().unwrap();
-                    let prefix_len = prefix.len();
+                use interpreter::Value;
 
-                    let candidates = map
-                        .keys()
-                        .filter(|var| prefix_len <= var.len() && &var[..prefix_len] == *prefix)
-                        .map(|key| Pair {
-                            display: key.clone(),
-                            replacement: key.clone(),
-                        })
-                        .collect::<Vec<Pair>>();
+                let keys = match value {
+                    Value::Map(map) => map.keys().cloned().collect::<Vec<String>>(),
+                    Value::List(_) => vec![String::from("length")],
+                    Value::String(_) => vec![String::from("length")],
+                    Value::Function(_) => vec![String::from("name")],
+                    _ => vec![],
+                };
 
-                    return Ok((pos - prefix_len, candidates));
-                }
+                let prefix = parts.last().unwrap();
+                let prefix_len = prefix.len();
+
+                let candidates = keys
+                    .into_iter()
+                    .filter(|var| prefix_len <= var.len() && &var[..prefix_len] == *prefix)
+                    .map(|key| Pair {
+                        display: key.clone(),
+                        replacement: key.clone(),
+                    })
+                    .collect::<Vec<Pair>>();
+
+                return Ok((pos - prefix_len, candidates));
             }
         }
 
