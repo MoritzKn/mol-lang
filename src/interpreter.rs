@@ -1,4 +1,5 @@
 use crate::ast;
+use crate::ast::Expression;
 use crate::utils::write_list;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, Weak};
@@ -102,7 +103,7 @@ pub struct Closure {
     name: String,
     scope_chain: Vec<ScopeRef>,
     slots: Vec<ast::Slot>,
-    expression: ast::Expression,
+    expression: Expression,
 }
 
 impl Display for Closure {
@@ -204,25 +205,27 @@ pub enum Value {
     List(Vec<Value>),
     Map(HashMap<String, Value>),
     Function(Function),
+    Syntax(Box<Expression>),
 }
 
 impl Value {
-    pub fn get_type(&self) -> String {
+    pub fn get_type(&self) -> &'static str {
         match self {
-            Value::Void => String::from("Void"),
-            Value::Number(_) => String::from("Number"),
-            Value::String(_) => String::from("String"),
-            Value::Boolean(_) => String::from("Boolean"),
-            Value::List(_) => String::from("List"),
-            Value::Map(_) => String::from("Map"),
-            Value::Function(_) => String::from("Function"),
+            Value::Void => "Void",
+            Value::Number(_) => "Number",
+            Value::String(_) => "String",
+            Value::Boolean(_) => "Boolean",
+            Value::List(_) => "List",
+            Value::Map(_) => "Map",
+            Value::Function(_) => "Function",
+            Value::Syntax(_) => "Syntax",
         }
     }
 
     /// Used for logging detailed information about the value for debugging
     pub fn inspect(&self) -> String {
         match self {
-            Value::Void => self.get_type(),
+            Value::Void => self.get_type().to_owned(),
             _ => format!("{}({})", self.get_type(), self),
         }
     }
@@ -257,7 +260,6 @@ impl Value {
                     .normal()
                 }
             }
-            Value::Function(value) => value.print().blue(),
             Value::Map(value) => format!(
                 "{{\n{}\n{}}}",
                 value
@@ -272,6 +274,8 @@ impl Value {
                 "  ".repeat(depth),
             )
             .normal(),
+            Value::Function(value) => value.print().blue(),
+            Value::Syntax(expr) => expr.to_string().red(),
         }
     }
 
@@ -312,7 +316,7 @@ impl Value {
             },
 
             // TODO: Implement equal for complex types
-            Value::Function(_) | Value::Map(_) | Value::List(_) => false,
+            _ => false,
         }
     }
 
@@ -322,9 +326,10 @@ impl Value {
             Value::Number(_) => matches!(other, Value::Number(_)),
             Value::String(_) => matches!(other, Value::String(_)),
             Value::Boolean(_) => matches!(other, Value::Boolean(_)),
-            Value::Function(_) => matches!(other, Value::Function(_)),
             Value::Map(_) => matches!(other, Value::Map(_)),
             Value::List(_) => matches!(other, Value::List(_)),
+            Value::Function(_) => matches!(other, Value::Function(_)),
+            Value::Syntax(_) => matches!(other, Value::Syntax(_)),
         }
     }
 }
@@ -364,6 +369,7 @@ impl Display for Value {
             ),
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
+            Value::Syntax(value) => write!(f, "{}", value),
         }
     }
 }
@@ -486,6 +492,12 @@ impl From<NativeFunctionDef> for Value {
 impl From<Binding> for Value {
     fn from(binding: Binding) -> Value {
         Value::from(Function::Binding(Box::new(binding)))
+    }
+}
+
+impl From<Expression> for Value {
+    fn from(expr: Expression) -> Value {
+        Value::Syntax(Box::new(expr))
     }
 }
 
@@ -801,7 +813,7 @@ pub fn set_member(object: &mut Value, property: &Value, value: Value) -> Result<
     }
 }
 
-fn eval_expr_list(expr_list: &[ast::Expression], ctx: &mut Context) -> Result<Value, Value> {
+fn eval_expr_list(expr_list: &[Expression], ctx: &mut Context) -> Result<Value, Value> {
     let mut final_val = Value::Void;
     for expr in expr_list {
         final_val = eval_expr(&expr, ctx)?;
@@ -809,8 +821,8 @@ fn eval_expr_list(expr_list: &[ast::Expression], ctx: &mut Context) -> Result<Va
     Ok(final_val)
 }
 
-fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> {
-    use ast::Expression::*;
+fn eval_expr(expr: &Expression, ctx: &mut Context) -> Result<Value, Value> {
+    use Expression::*;
 
     match expr {
         Assignment(assignment) => {
@@ -961,12 +973,17 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
             slots: function.slots.to_owned(),
             scope_chain: ctx.export_scope_chain(),
         })),
+        LiftUp(lift_up) => {
+            // TODO: Later this AST node should always be removed in complication and we would error.
+            //       But for now its good for testing.
+            Ok(Value::from(lift_up.expr.clone()))
+        }
         ListLiteral(list_literal) => {
             let results: Result<Vec<Value>, Value> = list_literal
-            .values
-            .iter()
-            .map(|expr| eval_expr(expr, ctx))
-            .collect();
+                .values
+                .iter()
+                .map(|expr| eval_expr(expr, ctx))
+                .collect();
 
             results.map(Value::from)
         }
@@ -977,6 +994,17 @@ fn eval_expr(expr: &ast::Expression, ctx: &mut Context) -> Result<Value, Value> 
             access_member(&object, &property)
         }
         NumberLiteral(number_literal) => Ok(Value::from(number_literal.value.to_owned())),
+        PlaceDown(place_down) => {
+            // TODO: Later this AST node should always be removed in complication and we would error.
+            //       But for now its good for testing.
+            let value = eval_expr(&place_down.expr, ctx)?;
+
+            if let Value::Syntax(expr) = value {
+                eval_expr(&expr, ctx)
+            } else {
+                Ok(value)
+            }
+        }
         StringLiteral(string_literal) => Ok(Value::from(string_literal.value.to_owned())),
         Unary(unary) => {
             use ast::UnaryOperator::*;

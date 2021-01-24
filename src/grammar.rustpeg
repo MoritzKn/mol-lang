@@ -40,6 +40,8 @@ prefix_expr -> Expression
     = "+" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Pos })) }
     / "!" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Not })) }
     / "-" __ expr:prefix_expr { Expression::Unary(Box::new(Unary{ expr, op: UnaryOperator::Neg })) }
+    / ">" __ expr:prefix_expr { Expression::LiftUp(Box::new(LiftUp{ expr })) }
+    / "<" __ expr:prefix_expr { Expression::PlaceDown(Box::new(PlaceDown{ expr })) }
     / call_expr
 
 access_expr -> Expression

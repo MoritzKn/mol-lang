@@ -1126,4 +1126,28 @@ mod tests {
 
         assert_eq!(result, ast);
     }
+
+    #[test]
+    fn test_lift_up() {
+        let result = parse_string(">foo()").unwrap();
+        let ast = program(vec![lift_up_expr(call_expr(id_expr("foo"), vec![]))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_place_down() {
+        let result = parse_string("<foo()").unwrap();
+        let ast = program(vec![place_down_expr(call_expr(id_expr("foo"), vec![]))]);
+
+        assert_eq!(result, ast);
+    }
+
+    #[test]
+    fn test_lift_up_place_down() {
+        let result = parse_string("<>foo()").unwrap();
+        let ast = program(vec![place_down_expr(lift_up_expr(call_expr(id_expr("foo"), vec![])))]);
+
+        assert_eq!(result, ast);
+    }
 }

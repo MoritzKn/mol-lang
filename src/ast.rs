@@ -26,9 +26,11 @@ pub enum Expression {
     Id(Box<Id>),
     IfElse(Box<IfElse>),
     Lambda(Box<Lambda>),
+    LiftUp(Box<LiftUp>),
     ListLiteral(Box<ListLiteral>),
     MemberAccess(Box<MemberAccess>),
     NumberLiteral(Box<NumberLiteral>),
+    PlaceDown(Box<PlaceDown>),
     StringLiteral(Box<StringLiteral>),
     Unary(Box<Unary>),
     VoidLiteral(Box<VoidLiteral>),
@@ -59,9 +61,11 @@ impl Display for Expression {
             Expression::Id(ast) => write!(f, "{}", ast),
             Expression::IfElse(ast) => write!(f, "{}", ast),
             Expression::Lambda(ast) => write!(f, "{}", ast),
+            Expression::LiftUp(ast) => write!(f, "{}", ast),
             Expression::ListLiteral(ast) => write!(f, "{}", ast),
             Expression::MemberAccess(ast) => write!(f, "{}", ast),
             Expression::NumberLiteral(ast) => write!(f, "{}", ast),
+            Expression::PlaceDown(ast) => write!(f, "{}", ast),
             Expression::StringLiteral(ast) => write!(f, "{}", ast),
             Expression::Unary(ast) => write!(f, "{}", ast),
             Expression::VoidLiteral(ast) => write!(f, "{}", ast),
@@ -154,7 +158,7 @@ pub struct Call {
 impl Display for Call {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}(", self.callee)?;
-        write_list(f, &self.arguments, " ,")?;
+        write_list(f, &self.arguments, ", ")?;
         write!(f, ")")
     }
 }
@@ -338,6 +342,17 @@ impl Display for Lambda {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct LiftUp {
+    pub expr: Expression,
+}
+
+impl Display for LiftUp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, ">{}", self.expr)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct NumberLiteral {
     // Must be positive!
@@ -362,6 +377,17 @@ impl Display for NumberLiteral {
         } else {
             write!(f, "{}", self.value)
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaceDown {
+    pub expr: Expression,
+}
+
+impl Display for PlaceDown {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, ">{}", self.expr)
     }
 }
 
@@ -445,6 +471,12 @@ pub mod build {
     }
     pub fn expr_number_literal(number_literal: NumberLiteral) -> Expression {
         Expression::NumberLiteral(Box::new(number_literal))
+    }
+    pub fn expr_place_down(place_down: PlaceDown) -> Expression {
+        Expression::PlaceDown(Box::new(place_down))
+    }
+    pub fn expr_lift_up(lift_up: LiftUp) -> Expression {
+        Expression::LiftUp(Box::new(lift_up))
     }
     pub fn expr_string_literal(string_literal: StringLiteral) -> Expression {
         Expression::StringLiteral(Box::new(string_literal))
@@ -685,6 +717,20 @@ pub mod build {
     }
     pub fn number_literal_expr(value: f64) -> Expression {
         expr_number_literal(number_literal(value))
+    }
+
+    pub fn place_down(expr: Expression) -> PlaceDown {
+        PlaceDown { expr }
+    }
+    pub fn place_down_expr(expr: Expression) -> Expression {
+        expr_place_down(place_down(expr))
+    }
+
+    pub fn lift_up(expr: Expression) -> LiftUp {
+        LiftUp { expr }
+    }
+    pub fn lift_up_expr(expr: Expression) -> Expression {
+        expr_lift_up(lift_up(expr))
     }
 
     pub fn string_literal(value: &str) -> StringLiteral {
