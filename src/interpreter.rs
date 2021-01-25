@@ -880,6 +880,8 @@ pub fn access_member(object: &Value, property: &Value) -> Value {
         _ => {}
     };
 
+    // TODO: error for void.foo like js does it wiht undefined?
+
     Value::Void
 }
 

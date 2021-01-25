@@ -1,0 +1,90 @@
+console.log("hello!");
+
+let goal = "let me show you my programming language a little";
+
+typeof(goal);
+
+let list = [1, 9, 4, 2];
+filter(list, (n) => n > 2);
+
+"you can also use a thing called binding!":typeof();
+
+function randomValues(n) {
+	seq(0, n):map(() => math.random() * 100)
+};
+
+randomValues(10):map(math.round);
+
+function randomGrid(size) {
+	seq(0, size):map(() => randomValues(size))
+};
+
+let grid = randomGrid(10);
+
+function valueToChar(value) {
+	if (value > 70) {
+		"●"
+	} else if (value > 60) {
+		"◉"
+	} else if (value > 40) {
+		" "
+	} else if (value > 30) {
+		"·"
+	} else {
+		"◇"
+	}
+};
+
+valueToChar(grid[0][0]);
+
+function plot(grid) {
+	grid:map((line) => line
+			:map(valueToChar)
+			:reduce((a, b) => a ++ " " ++ b, ""))
+		:forEach(console.log)
+};
+
+plot(grid);
+
+plot(randomGrid(15));
+
+let sum = (a, b) => a + b;
+let avg = (list) => list:reduce(sum, 0) / list.length;
+
+function smoothen(grid, factor) {
+	seq(0, grid.length):map((y) => {
+		let line = grid[y];
+
+		seq(0, line.length):map((x) => {
+			let point = grid[y][x];
+
+			let area = seq(y - 1, y + 2)
+				:map((yy) => {
+					seq(x - 1, x + 2)
+						:map((xx) => grid[yy][xx])
+				})
+				:reduce(concat, [])
+				:filter((point) => point);
+
+			 avg(area) * factor + point * (1-factor);
+		});
+	});
+};
+
+let grid = randomGrid(20);
+
+console.log('Smoothen 0');
+console.log();
+plot(grid);
+console.log();
+console.log('Smoothen 0.5');
+console.log();
+plot(smoothen(grid, 0.5));
+console.log();
+console.log('Smoothen 1');
+console.log();
+plot(smoothen(grid, 1));
+console.log();
+console.log('Smoothen 0.3 then 0.3');
+console.log();
+plot(smoothen(smoothen(grid, 0.2), 0.3));
