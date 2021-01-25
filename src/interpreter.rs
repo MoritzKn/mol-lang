@@ -82,6 +82,7 @@ pub fn install_stdlib(frame: &mut Frame) {
     register::<NativeFunctionDef>(frame, "map", ("map", lib::map));
     register::<NativeFunctionDef>(frame, "reduce", ("reduce", lib::reduce));
     register::<NativeFunctionDef>(frame, "filter", ("filter", lib::filter));
+    register::<NativeFunctionDef>(frame, "forEach", ("forEach", lib::for_each));
     register::<NativeFunctionDef>(frame, "seq", ("seq", lib::seq));
     register::<NativeFunctionDef>(frame, "concat", ("concat", lib::concat));
 
@@ -95,6 +96,8 @@ pub fn install_stdlib(frame: &mut Frame) {
         register_in_ns::<NativeFunctionDef>(&mut ns, "sum", ("sum", lib::math::sum));
         register_in_ns::<NativeFunctionDef>(&mut ns, "greatest", ("greatest", lib::math::greatest));
         register_in_ns::<NativeFunctionDef>(&mut ns, "smallest", ("smallest", lib::math::smallest));
+        register_in_ns::<NativeFunctionDef>(&mut ns, "random", ("random", lib::math::random));
+        register_in_ns::<NativeFunctionDef>(&mut ns, "round", ("round", lib::math::round));
     });
 }
 
@@ -192,7 +195,7 @@ impl Display for Function {
     }
 }
 
-fn throw<T: Into<Value>>(v: T) -> Result<Value, Value> {
+pub fn throw<V, E: Into<Value>>(v: E) -> Result<V, Value> {
     Err(v.into())
 }
 
@@ -206,6 +209,67 @@ pub enum Value {
     Map(HashMap<String, Value>),
     Function(Function),
     Syntax(Box<Expression>),
+}
+
+fn print_list(value: &Vec<Value>, depth: usize) -> colored::ColoredString {
+    use colored::*;
+
+    if value.is_empty() {
+        return "[]".to_string().normal();
+    }
+
+    let content = {
+        let depth = depth + 1;
+        let indent = "  ".repeat(depth);
+        let line_length = 80 - indent.len();
+
+        let (total_len, max_len) =
+            value
+                .iter()
+                .map(|v| v.print(0).len())
+                .fold((0, 0), |(total, max), len| {
+                    let max = if len > max { len } else { max };
+
+                    (total + len, max)
+                });
+
+        let min_chunk_size = 3;
+        let joiner = ", ";
+        let chunk_size = line_length / (max_len + joiner.len());
+
+        if total_len < line_length {
+            let list: Vec<String> = value.iter().map(|v| v.print(depth).to_string()).collect();
+            format!("{}{}", indent, list.join(joiner))
+        } else {
+            if chunk_size >= min_chunk_size {
+                let list: Vec<String> = value
+                    .chunks(chunk_size)
+                    .map(|chunk| {
+                        let chunk: Vec<String> = chunk
+                            .iter()
+                            .map(|v| {
+                                let v = v.print(depth);
+                                let pad = " ".repeat(max_len - v.len());
+                                format!("{}{}", pad, v)
+                            })
+                            .collect();
+                        format!("{}{}", indent, chunk.join(joiner))
+                    })
+                    .collect();
+
+                list.join(",\n")
+            } else {
+                let list: Vec<String> = value
+                    .iter()
+                    .map(|v| format!("{}{}", indent, v.print(depth)))
+                    .collect();
+
+                list.join(",\n")
+            }
+        }
+    };
+
+    format!("[\n{}\n{}]", content, "  ".repeat(depth)).normal()
 }
 
 impl Value {
@@ -240,26 +304,7 @@ impl Value {
             Value::Number(value) => format!("{}", value).yellow(),
             Value::String(value) => format!("\"{}\"", value).green(),
             Value::Boolean(value) => format!("{}", value).yellow(),
-            Value::List(value) => {
-                if value.is_empty() {
-                    "[]".to_string().normal()
-                } else {
-                    format!(
-                        "[\n{}\n{}]",
-                        value
-                            .iter()
-                            .map(|v| {
-                                let depth = depth + 1;
-
-                                format!("{}{}", "  ".repeat(depth), v.print(depth))
-                            })
-                            .collect::<Vec<String>>()
-                            .join(",\n"),
-                        "  ".repeat(depth),
-                    )
-                    .normal()
-                }
-            }
+            Value::List(value) => print_list(&value, depth),
             Value::Map(value) => format!(
                 "{{\n{}\n{}}}",
                 value
@@ -282,10 +327,37 @@ impl Value {
     pub fn as_number(&self) -> Result<f64, Value> {
         match self {
             Value::Number(n) => Ok(*n),
-            _ => Err(Value::from(format!(
-                "TypeError: {} can not be represented as number",
+            _ => throw(format!(
+                "TypeError: Expected Number but got {}",
                 self.inspect()
-            ))),
+            )),
+        }
+    }
+
+    pub fn as_integer(&self) -> Result<i64, Value> {
+        let n = self.as_number()?;
+
+        if n > 9007199254740991.0 || n < -9007199254740991.0 {
+            throw(format!("TypeError: Number out of integer range {}", n))
+        } else {
+            Ok(n as i64)
+        }
+    }
+
+    pub fn as_index(&self) -> Result<usize, Value> {
+        let n = self.as_number()?;
+
+        if n > 4294967296.0 || n < 0.0 {
+            throw(format!("TypeError: Number can not be used as index {}", n))
+        } else {
+            Ok(n as usize)
+        }
+    }
+
+    pub fn as_string(self) -> Result<String, Value> {
+        match self {
+            Value::String(s) => Ok(s),
+            _ => Ok(self.to_string()),
         }
     }
 
@@ -296,6 +368,36 @@ impl Value {
             Value::String(s) => Ok(!s.is_empty()),
             Value::Boolean(b) => Ok(*b),
             _ => Ok(true),
+        }
+    }
+
+    pub fn as_list(self) -> Result<Vec<Value>, Value> {
+        match self {
+            Value::List(list) => Ok(list),
+            _ => throw(format!(
+                "TypeError: Expected List but got {}",
+                self.get_type()
+            )),
+        }
+    }
+
+    pub fn as_map(self) -> Result<HashMap<String, Value>, Value> {
+        match self {
+            Value::Map(map) => Ok(map),
+            _ => throw(format!(
+                "TypeError: Expected Map but got {}",
+                self.get_type()
+            )),
+        }
+    }
+
+    pub fn as_function(self) -> Result<Function, Value> {
+        match self {
+            Value::Function(v) => Ok(v),
+            _ => throw(format!(
+                "TypeError: Expected Function but got {}",
+                self.get_type()
+            )),
         }
     }
 
@@ -358,15 +460,11 @@ impl Display for Value {
             }
             Value::String(value) => write!(f, "{}", value),
             Value::Boolean(value) => write!(f, "{}", value),
-            Value::List(value) => write!(
-                f,
-                "{}",
-                value
-                    .iter()
-                    .map(|v| v.to_string())
-                    .collect::<Vec<String>>()
-                    .join(", ")
-            ),
+            Value::List(value) => {
+                let list: Vec<String> = value.iter().map(|v| v.to_string()).collect();
+
+                write!(f, "{}", list.join(", "))
+            }
             Value::Map(value) => write!(f, "{:?}", value),
             Value::Function(value) => write!(f, "{}", value),
             Value::Syntax(value) => write!(f, "{}", value),
@@ -698,7 +796,7 @@ impl Context {
     }
 }
 
-fn call_func(func: &Function, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+pub fn call_func(func: &Function, mut args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
     match func {
         Function::Closure(closure) => {
             // The closure frame only has a weak ref to the scope so it is very important that the owned scope chain lives until the closure is evaluated
@@ -740,7 +838,7 @@ pub fn call_value(callee: &Value, args: Vec<Value>, ctx: &mut Context) -> Result
     }
 }
 
-pub fn access_member(object: &Value, property: &Value) -> Result<Value, Value> {
+pub fn access_member(object: &Value, property: &Value) -> Value {
     match object {
         Value::Map(map) => {
             let value = if let Value::String(name) = property {
@@ -750,42 +848,39 @@ pub fn access_member(object: &Value, property: &Value) -> Result<Value, Value> {
                 map.get(&property.to_string())
             };
 
-            return Ok(value.cloned().unwrap_or_default());
+            return value.cloned().unwrap_or_default();
         }
         Value::List(list) => {
             if let Value::String(name) = &property {
                 if name == "length" {
-                    return Ok(Value::from(list.len()));
+                    return Value::from(list.len());
                 }
             }
 
-            return Ok(list
-                .get(property.as_number()? as usize)
-                .cloned()
-                .unwrap_or_default());
+            return property
+                .as_index()
+                .ok()
+                .and_then(|index| list.get(index).cloned())
+                .unwrap_or_default();
         }
         Value::String(string) => {
             if let Value::String(name) = &property {
                 if name == "length" {
-                    return Ok(Value::from(string.len()));
+                    return Value::from(string.len());
                 }
             }
         }
         Value::Function(func) => {
             if let Value::String(name) = &property {
                 if name == "name" {
-                    return Ok(Value::from(func.name()));
+                    return Value::from(func.name());
                 }
             }
         }
         _ => {}
     };
 
-    throw(format!(
-        "TypeError: Can not access property '{}' of {}",
-        property,
-        object.get_type()
-    ))
+    Value::Void
 }
 
 pub fn set_member(object: &mut Value, property: &Value, value: Value) -> Result<Value, Value> {
@@ -796,9 +891,9 @@ pub fn set_member(object: &mut Value, property: &Value, value: Value) -> Result<
             Ok(value)
         }
         Value::List(list) => {
-            let index = property.as_number()? as usize;
+            // TODO: Not like ES does it!
+            let index = property.as_index()? as usize;
             if index >= list.len() {
-                println!("resize");
                 list.resize(index + 1, Value::Void)
             }
             list.insert(index, value.clone());
@@ -941,7 +1036,7 @@ fn eval_expr(expr: &Expression, ctx: &mut Context) -> Result<Value, Value> {
             let object = eval_expr(&dma.object, ctx)?;
             let property = eval_expr(&dma.property, ctx)?;
 
-            access_member(&object, &property)
+            Ok(access_member(&object, &property))
         }
         Function(function) => {
             let value = Value::from(Closure {
@@ -991,7 +1086,7 @@ fn eval_expr(expr: &Expression, ctx: &mut Context) -> Result<Value, Value> {
             let object = eval_expr(&member_access.object, ctx)?;
             let property = Value::from(member_access.property.name.to_string());
 
-            access_member(&object, &property)
+            Ok(access_member(&object, &property))
         }
         NumberLiteral(number_literal) => Ok(Value::from(number_literal.value.to_owned())),
         PlaceDown(place_down) => {
@@ -1025,11 +1120,6 @@ fn eval_expr(expr: &Expression, ctx: &mut Context) -> Result<Value, Value> {
 
 pub fn exec_with_context(program: &ast::Program, ctx: &mut Context) -> Result<Value, Value> {
     eval_expr_list(&program.body, ctx)
-}
-
-pub fn exec(program: &ast::Program) -> Result<Value, Value> {
-    let mut context = Context::new();
-    eval_expr_list(&program.body, &mut context)
 }
 
 #[cfg(test)]

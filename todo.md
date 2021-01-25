@@ -17,6 +17,7 @@
 - [ ] Throw / Catch
 - [x] Array access
 - [x] mutable state
+- [ ] fix: b + +a vs a ++ b
 
 ## Docs
 

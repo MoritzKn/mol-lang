@@ -25,16 +25,12 @@ impl Completer for RlHelper {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let prefix = &line[..pos];
 
-        // Split off last word
-        let parts = prefix.split(' ').collect::<Vec<&str>>();
-        let prefix = if parts.len() > 1 {
-            *parts.last().unwrap()
-        } else {
-            prefix
-        };
+        fn is_split_char(c: char) -> bool {
+            matches!(c, ' ' | ':' | '(' | '{')
+        }
 
-        // Split off last bind
-        let parts = prefix.split(':').collect::<Vec<&str>>();
+        // Split off last "word"
+        let parts = prefix.split(is_split_char).collect::<Vec<&str>>();
         let prefix = if parts.len() > 1 {
             *parts.last().unwrap()
         } else {
@@ -105,12 +101,12 @@ impl Completer for RlHelper {
     }
 }
 
-pub fn start() {
+pub fn start(context: interpreter::Context) {
     let history_file = env::var("HOME")
         .map(|dir| format!("{}/.mol_repl_history", dir))
         .ok();
 
-    let context = Arc::new(Mutex::new(interpreter::Context::new()));
+    let context = Arc::new(Mutex::new(context));
 
     let mut rl = Editor::<RlHelper>::with_config(
         Config::builder()

@@ -1,32 +1,30 @@
-use crate::interpreter::{call_value, Context, Value};
+use crate::interpreter::{call_func, Context, Value};
+
+fn arg_error(expected: usize, found: usize) -> Value {
+    Value::from(format!(
+        "TypeError: Expected {} arguments but got {}",
+        expected, found
+    ))
+}
 
 pub fn type_of(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
     args.into_iter()
         .next()
-        .map(|v| Value::from(v.get_type()))
         .ok_or_else(|| Value::from("TypeError: Expected 1 argument but got 0"))
+        .map(|v| Value::from(v.get_type()))
 }
 
 pub fn seq(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
-    let mut iter = args.into_iter().map(|v| match v {
-        Value::Number(n) if n <= 9007199254740991.0 => Ok(n as i64),
-        Value::Number(n) => Err(Value::from(format!(
-            "TypeError: Number out of integer range {}",
-            n
-        ))),
-        _ => Err(Value::from(format!(
-            "TypeError: Expected number but got {}",
-            v.get_type()
-        ))),
-    });
+    let mut iter = args.into_iter();
 
     let lower = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected 3 argument but got 0"))??;
-
+        .ok_or(arg_error(2, 0))
+        .and_then(|v| v.as_integer())?;
     let upper = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected 2 argument but got 1"))??;
+        .ok_or(arg_error(2, 1))
+        .and_then(|v| v.as_integer())?;
 
     let list: Vec<Value> = (lower..upper).into_iter().map(Value::from).collect();
 
@@ -38,30 +36,36 @@ pub fn map(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
 
     let list = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected two argument but got 0"))
-        .and_then(|v| match v {
-            Value::List(list) => Ok(list),
-            _ => Err(Value::from(format!(
-                "TypeError: Expected list but got {}",
-                v.get_type()
-            ))),
-        })?;
-
+        .ok_or(arg_error(2, 0))
+        .and_then(|v| v.as_list())?;
     let callback = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected two argument but got 1"))
-        .and_then(|v| match v {
-            Value::Function(_) => Ok(v),
-            _ => Err(Value::from(format!(
-                "TypeError: Expected function but got {}",
-                v.get_type()
-            ))),
-        })?;
+        .ok_or(arg_error(2, 1))
+        .and_then(|v| v.as_function())?;
 
     list.into_iter()
-        .map(|value| call_value(&callback, vec![value], ctx))
+        .map(|value| call_func(&callback, vec![value], ctx))
         .collect::<Result<Vec<Value>, Value>>()
         .map(Value::from)
+}
+
+pub fn for_each(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
+    let mut iter = args.into_iter();
+
+    let list = iter
+        .next()
+        .ok_or(arg_error(2, 0))
+        .and_then(|v| v.as_list())?;
+    let callback = iter
+        .next()
+        .ok_or(arg_error(2, 1))
+        .and_then(|v| v.as_function())?;
+
+    for item in list {
+        call_func(&callback, vec![item.clone()], ctx)?.as_boolean()?;
+    }
+
+    Ok(Value::Void)
 }
 
 pub fn filter(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
@@ -69,30 +73,17 @@ pub fn filter(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
 
     let list = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected two argument but got 0"))
-        .and_then(|v| match v {
-            Value::List(list) => Ok(list),
-            _ => Err(Value::from(format!(
-                "TypeError: Expected list but got {}",
-                v.get_type()
-            ))),
-        })?;
-
+        .ok_or(arg_error(2, 0))
+        .and_then(|v| v.as_list())?;
     let callback = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected two argument but got 1"))
-        .and_then(|v| match v {
-            Value::Function(_) => Ok(v),
-            _ => Err(Value::from(format!(
-                "TypeError: Expected function but got {}",
-                v.get_type()
-            ))),
-        })?;
+        .ok_or(arg_error(2, 1))
+        .and_then(|v| v.as_function())?;
 
     let mut out = vec![];
     for item in list {
-        let res = call_value(&callback, vec![item.clone()], ctx)?.as_boolean()?;
-        if res {
+        let res = call_func(&callback, vec![item.clone()], ctx)?;
+        if res.as_boolean()? {
             out.push(item);
         }
     }
@@ -105,32 +96,16 @@ pub fn reduce(args: Vec<Value>, ctx: &mut Context) -> Result<Value, Value> {
 
     let list = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected 3 argument but got 0"))
-        .and_then(|v| match v {
-            Value::List(list) => Ok(list),
-            _ => Err(Value::from(format!(
-                "TypeError: Expected list but got {}",
-                v.get_type()
-            ))),
-        })?;
-
+        .ok_or(arg_error(3, 0))
+        .and_then(|v| v.as_list())?;
     let callback = iter
         .next()
-        .ok_or_else(|| Value::from("TypeError: Expected 3 argument but only got 1"))
-        .and_then(|v| match v {
-            Value::Function(_) => Ok(v),
-            _ => Err(Value::from(format!(
-                "TypeError: Expected function but got {}",
-                v.get_type()
-            ))),
-        })?;
-
-    let inital = iter
-        .next()
-        .ok_or_else(|| Value::from("TypeError: Expected 3 argument but only got 2"))?;
+        .ok_or(arg_error(3, 1))
+        .and_then(|v| v.as_function())?;
+    let inital = iter.next().ok_or(arg_error(3, 2))?;
 
     list.into_iter().try_fold(inital, |acc, curr| {
-        call_value(&callback, vec![acc, curr], ctx)
+        call_func(&callback, vec![acc, curr], ctx)
     })
 }
 
@@ -150,13 +125,13 @@ pub fn concat(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
 }
 
 pub mod console {
-    use crate::interpreter::{Context, Value};
+    use super::*;
 
     pub fn log(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
         let text = args
             .into_iter()
-            .map(|v| v.to_string())
-            .collect::<Vec<String>>()
+            .map(|v| v.as_string())
+            .collect::<Result<Vec<String>, Value>>()?
             .join(" ");
 
         println!("{}", text);
@@ -173,55 +148,57 @@ pub mod console {
     }
 
     pub fn inspect(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
-        let text = args
-            .into_iter()
-            .map(|v| v.inspect())
-            .collect::<Vec<String>>()
-            .join(" ");
-
-        println!("{}", text);
+        for arg in args {
+            print!("{} ", arg.print(0));
+        }
+        println!("");
 
         Ok(Value::Void)
     }
 }
 
 pub mod math {
-    use crate::interpreter::{Context, Value};
+    use super::*;
     use std::f64;
 
     pub fn sum(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
         args.into_iter()
-            .try_fold(0.0, |acc, curr| match curr {
-                Value::Number(curr) => Ok(acc + curr),
-                _ => Err(Value::from(format!(
-                    "TypeError: Can not sum elements of type {}",
-                    curr.get_type()
-                ))),
-            })
-            .map(Value::Number)
+            .map(|v| v.as_number())
+            .try_fold(0.0, |acc, curr| curr.map(|num| num + acc))
+            .map(Value::from)
     }
 
     pub fn greatest(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
         args.into_iter()
-            .try_fold(f64::NEG_INFINITY, |acc, curr| match curr {
-                Value::Number(curr) => Ok(if acc < curr { curr } else { acc }),
-                _ => Err(Value::from(format!(
-                    "TypeError: Can not find greatest for element of type {}",
-                    curr.get_type()
-                ))),
+            .map(|v| v.as_number())
+            .try_fold(f64::NEG_INFINITY, |acc, curr| {
+                curr.map(|curr| if acc < curr { curr } else { acc })
             })
-            .map(Value::Number)
+            .map(Value::from)
     }
 
     pub fn smallest(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
         args.into_iter()
-            .try_fold(f64::INFINITY, |acc, curr| match curr {
-                Value::Number(curr) => Ok(if acc > curr { curr } else { acc }),
-                _ => Err(Value::from(format!(
-                    "TypeError: Can not find smallest for element of type {}",
-                    curr.get_type()
-                ))),
+            .map(|v| v.as_number())
+            .try_fold(f64::NEG_INFINITY, |acc, curr| {
+                curr.map(|curr| if acc > curr { curr } else { acc })
             })
-            .map(Value::Number)
+            .map(Value::from)
+    }
+
+    pub fn random(_args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
+        let value: f64 = rand::random();
+
+        Ok(Value::from(value))
+    }
+
+    pub fn round(args: Vec<Value>, _ctx: &mut Context) -> Result<Value, Value> {
+        let n = args
+            .into_iter()
+            .next()
+            .ok_or(arg_error(1, 0))
+            .and_then(|v| v.as_number())?;
+
+        Ok(Value::from(n.round()))
     }
 }

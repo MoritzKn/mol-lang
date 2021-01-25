@@ -2,6 +2,7 @@ extern crate clap;
 extern crate colored;
 extern crate env_logger;
 extern crate log;
+extern crate rand;
 extern crate rustyline;
 extern crate rustyline_derive;
 
@@ -32,6 +33,17 @@ fn init_cli() -> Cli {
                 .multiple(true),
         )
         .arg(
+            Arg::with_name("load")
+                .long("load")
+                .short("l")
+                .value_name("FILE")
+                .takes_value(true)
+                .help("Load files before starting the REPL")
+                .conflicts_with("eval")
+                .conflicts_with("print")
+                .multiple(true),
+        )
+        .arg(
             Arg::with_name("result")
                 .short("r")
                 .long("result")
@@ -39,14 +51,14 @@ fn init_cli() -> Cli {
                 .requires("files")
                 .multiple(false),
         )
-        .arg(
-            Arg::with_name("check")
-                .long("check")
-                .short("c")
-                .help("Syntax check script without executing")
-                .requires("files")
-                .multiple(false),
-        )
+        // .arg(
+        //     Arg::with_name("check")
+        //         .long("check")
+        //         .short("c")
+        //         .help("Syntax check script without executing")
+        //         .requires("files")
+        //         .multiple(false),
+        // )
         .arg(
             Arg::with_name("print")
                 .takes_value(true)
@@ -76,49 +88,25 @@ fn init_cli() -> Cli {
         .get_matches()
 }
 
-fn exec_file(file: &str, cli: &Cli) {
+fn exec_file(file: &str, context: &mut interpreter::Context, print: bool) {
     match fs::read_to_string(file) {
         Err(error) => {
             eprintln!("{}: '{}'", error, file);
             std::process::exit(1);
         }
 
-        Ok(content) => match parser::parse_string(&content) {
-            Err(error) => {
-                eprintln!("Syntax {}", error);
-                std::process::exit(1);
-            }
-
-            Ok(program) => {
-                if cli.args.contains_key("check") {
-                    return;
-                }
-
-                match interpreter::exec(&program) {
-                    Err(error) => {
-                        eprintln!("Uncaught {}", error);
-                        std::process::exit(1);
-                    }
-
-                    Ok(result) => {
-                        if cli.args.contains_key("result") {
-                            println!("{}", result.print(0))
-                        }
-                    }
-                }
-            }
-        },
+        Ok(content) => exec_string(&content, context, print),
     }
 }
 
-fn exec_string(string: &str, print: bool) {
+fn exec_string(string: &str, context: &mut interpreter::Context, print: bool) {
     match parser::parse_string(string) {
         Err(error) => {
             eprintln!("Syntax {}", error);
             std::process::exit(1);
         }
 
-        Ok(program) => match interpreter::exec(&program) {
+        Ok(program) => match interpreter::exec_with_context(&program, context) {
             Err(error) => {
                 eprintln!("Uncaught {}", error);
                 std::process::exit(1);
@@ -139,18 +127,30 @@ fn main() {
     let cli = init_cli();
 
     if let Some(files) = cli.values_of("files") {
+        let print = cli.args.contains_key("result");
         for file in files {
-            exec_file(file, &cli);
+            let mut context = interpreter::Context::new();
+            exec_file(file, &mut context, print);
         }
     } else if let Some(scripts) = cli.values_of("eval") {
         for script in scripts {
-            exec_string(script, false);
+            let mut context = interpreter::Context::new();
+            exec_string(script, &mut context, false);
         }
     } else if let Some(scripts) = cli.values_of("print") {
         for script in scripts {
-            exec_string(script, true);
+            let mut context = interpreter::Context::new();
+            exec_string(script, &mut context, true);
         }
     } else {
-        repl::start();
+        let mut context = interpreter::Context::new();
+
+        if let Some(scripts) = cli.values_of("load") {
+            for script in scripts {
+                exec_file(script, &mut context, true);
+            }
+        }
+
+        repl::start(context);
     }
 }
