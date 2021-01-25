@@ -9,7 +9,7 @@
 
 - [x] Add functions
 - [x] Add void value
-- [x] Call stack and scops
+- [x] Call stack and scopes
 - [x] Ifs
 - [x] Fix lexical scope
 - [x] Loops
@@ -21,11 +21,11 @@
 
 ## Docs
 
-- [ ] README
+- [x] README
 - [ ] Document Grammar
-- [ ] More examples
-- [ ] Goals
-- [ ] Getting started
+- [x] More examples
+- [x] Goals
+- [x] Getting started
 
 ## Compiler
 
@@ -68,8 +68,8 @@
 
 ## Types
 
-- [ ] Add types to grammar
-- [ ] Type basic static checker (just check value variants)
+- [x] Add types to grammar
+- [ ] Basic static type checker (just check value variants)
 - [ ] Record types: just a list of slots
 - [ ] Type alias (Interface/Traits work by specifiying a type alias.)
 - [ ] Algebraic types (Option, etc)?
